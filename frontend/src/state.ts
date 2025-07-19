@@ -1,12 +1,17 @@
+// frontend/src/state.ts
+
 import { api } from "./api";
 import type { State, User, Habit } from "./types";
+import { path_to_view, NavigateFx } from "./router"; // Import router helpers
 
-// Initial State
 const savedUser = localStorage.getItem("peakstreak_user");
 const savedToken = localStorage.getItem("peakstreak_token");
 
+const initialPath = window.location.pathname;
+const initialView = path_to_view(initialPath);
+
 export const initialState: State = {
-  view: savedUser && savedToken ? "dashboard" : "login",
+  view: initialView,
   user: savedUser ? JSON.parse(savedUser) : null,
   token: savedToken,
   habits: [],
@@ -22,7 +27,6 @@ export const SetView = (state: State, view: State["view"]): State => ({ ...state
 
 export const SetError = (state: State, error: string | null): State => {
   console.error("error: " + error);
-  console.log("log of error:" + error);
   return { ...state, isLoading: false, error };
 };
 
@@ -33,10 +37,11 @@ export const HandleFormInput = (state: State, event: Event): State => ({
   newHabitName: (event.target as HTMLInputElement).value,
 });
 
-export const SetAuth = (state: State, { user, token }: { user: User, token: string }): State => {
+export const SetAuth = (state: State, { user, token }: { user: User, token: string }): [State, any] => {
   localStorage.setItem("peakstreak_user", JSON.stringify(user));
   localStorage.setItem("peakstreak_token", token);
-  return { ...state, user, token, view: "dashboard", isLoading: false, error: null };
+  const newState = { ...state, user, token, isLoading: false, error: null };
+  return [newState, [NavigateFx, { path: "/dashboard", replace: true }]];
 };
 
 export const SetHabits = (state: State, habits: Habit[]): State => {
@@ -50,10 +55,11 @@ export const MarkHabitAsLogged = (state: State, habitId: string): State => ({
   habits: state.habits.map(h => h.id === habitId ? { ...h, loggedToday: true } : h),
 });
 
-export const Logout = (_state: State): State => {
+export const Logout = (_state: State): [State, any] => {
   localStorage.removeItem("peakstreak_user");
   localStorage.removeItem("peakstreak_token");
-  return { ...initialState, view: "login" };
+  const newState: State = { ...initialState, view: "login", user: null, token: null };
+  return [newState, [NavigateFx, { path: "/login", replace: true }]];
 };
 
 
@@ -61,7 +67,7 @@ export const Logout = (_state: State): State => {
 
 export const FetchHabitsFx = (dispatch: any, { token, username }: { token: string, username: string }) => {
   dispatch(SetLoading, true);
-  api.get(`/api/users/${username}`, token)
+  api.get(`/api/user/${username}`, token)
     .then(data => dispatch(SetHabits, data.habits || []))
     .catch(err => dispatch(SetError, err.message));
 };
@@ -70,6 +76,7 @@ export const LoginFx = (dispatch: any, { identifier, password }: any) => {
   dispatch(SetLoading, true);
   api.post("/api/auth/login", { identifier, password })
     .then(data => {
+      // SetAuth will handle the state update and navigation
       dispatch(SetAuth, data);
       FetchHabitsFx(dispatch, { token: data.token, username: data.user.username });
     })
@@ -79,13 +86,13 @@ export const LoginFx = (dispatch: any, { identifier, password }: any) => {
 export const SignUpFx = (dispatch: any, { username, email, password }: any) => {
   dispatch(SetLoading, true);
   api.post("/api/auth/signup", { username, email, password })
-    .then(() => dispatch(SetView, "login"))
+    .then(() => dispatch(NavigateFx, { path: "/login" }))
     .catch(err => dispatch(SetError, err.message));
 };
 
 export const CreateHabitFx = (dispatch: any, { name, token, username }: { name: string, token: string, username: string }) => {
   dispatch(SetLoading, true);
-  api.post("/api/habits", { name }, token)
+  api.post("/api/habit", { name }, token)
     .then(() => {
       FetchHabitsFx(dispatch, { token, username });
     })
@@ -95,13 +102,18 @@ export const CreateHabitFx = (dispatch: any, { name, token, username }: { name: 
 export const LogHabitFx = (dispatch: any, { habitId, token }: { habitId: string, token: string }) => {
   const date = new Date().toISOString().split('T')[0];
   dispatch(SetLoading, true);
-  api.post(`/api/habits/${habitId}/logs`, { date, status: true }, token)
+  api.post(`/api/habit/${habitId}/log`, { date, status: true }, token)
     .then(() => dispatch(MarkHabitAsLogged, habitId))
     .catch(err => dispatch(SetError, err.message));
 };
 
 export const initFx = (dispatch: any, state: State) => {
+  if (state.view === "dashboard" && (!state.user || !state.token)) {
+    dispatch(NavigateFx, { path: "/login", replace: true });
+    return;
+  }
+
   if (state.user && state.token) {
     FetchHabitsFx(dispatch, { token: state.token, username: state.user.username });
   }
-}
+};

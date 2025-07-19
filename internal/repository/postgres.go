@@ -158,3 +158,26 @@ func (r *PostgresRepository) GetHabitLogs(ctx context.Context, habitID uuid.UUID
 	}
 	return logs, nil
 }
+
+func (r *PostgresRepository) GetLogsForHabits(ctx context.Context, habitIDs []uuid.UUID, startDate, endDate time.Time) ([]domain.HabitLog, error) {
+	if len(habitIDs) == 0 {
+		return []domain.HabitLog{}, nil
+	}
+	query := `
+        SELECT id, habit_id, log_date, status, created_at, updated_at
+        FROM habit_logs
+        WHERE habit_id = ANY($1) AND log_date >= $2 AND log_date <= $3
+        ORDER BY habit_id, log_date ASC`
+
+	rows, err := r.db.Query(ctx, query, habitIDs, startDate, endDate)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	logs, err := pgx.CollectRows(rows, pgx.RowToStructByName[domain.HabitLog])
+	if err != nil {
+		return nil, err
+	}
+	return logs, nil
+}

@@ -24,7 +24,7 @@ func NewRouter(handler *APIHandler) http.Handler {
 		r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 		})
-		r.Get("/users/{username}", handler.GetPublicUserProfile)
+		r.Get("/user/{username}", handler.GetPublicUserProfile)
 
 		r.Route("/auth", func(r chi.Router) {
 			r.Post("/signup", handler.SignUp)
@@ -35,8 +35,9 @@ func NewRouter(handler *APIHandler) http.Handler {
 			r.Use(handler.authMiddleware)
 
 			// r.Get("/me", handler.GetCurrentUserProfile)
-			r.Post("/habits", handler.CreateHabit)
-			r.Post("/habits/{habitId}/logs", handler.LogHabit)
+			r.Get("/me/habit", handler.GetMyHabits)
+			r.Post("/habit", handler.CreateHabit)
+			r.Post("/habit/{habitId}/log", handler.LogHabit)
 		})
 	})
 

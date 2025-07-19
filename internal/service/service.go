@@ -116,7 +116,7 @@ func (s *Service) CreateHabit(ctx context.Context, params CreateHabitParams, use
 	return habit, nil
 }
 
-func (s *Service) GetHabitDetailsForUser(ctx context.Context, habitID, requestingUserID uuid.UUID) (*domain.HabitDetails, error) {
+func (s *Service) GetHabitDetailsForUser(ctx context.Context, habitID, requestingUserID uuid.UUID) (*domain.HabitWithLogs, error) {
 	habit, err := s.repo.GetHabitByID(ctx, habitID)
 	if err != nil {
 		return nil, err
@@ -134,12 +134,55 @@ func (s *Service) GetHabitDetailsForUser(ctx context.Context, habitID, requestin
 		return nil, err
 	}
 
-	details := &domain.HabitDetails{
+	details := &domain.HabitWithLogs{
 		Habit: *habit,
 		Logs:  logs,
 	}
 
 	return details, nil
+}
+
+func (s *Service) GetAllHabitsWithLogs(ctx context.Context, userID uuid.UUID) ([]domain.HabitWithLogs, error) {
+	habits, err := s.repo.GetHabitsByUserID(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(habits) == 0 {
+		return []domain.HabitWithLogs{}, nil
+	}
+
+	habitIDs := make([]uuid.UUID, len(habits))
+	for i, habit := range habits {
+		habitIDs[i] = habit.ID
+	}
+
+	endDate := time.Now()
+	startDate := endDate.AddDate(0, 0, -90)
+
+	logs, err := s.repo.GetLogsForHabits(ctx, habitIDs, startDate, endDate)
+	if err != nil {
+		return nil, err
+	}
+
+	logsByHabitID := make(map[uuid.UUID][]domain.HabitLog)
+	for _, log := range logs {
+		logsByHabitID[log.HabitID] = append(logsByHabitID[log.HabitID], log)
+	}
+
+	habitsWithLogs := make([]domain.HabitWithLogs, len(habits))
+	for i, habit := range habits {
+		logsForHabit := logsByHabitID[habit.ID]
+		if logsForHabit == nil {
+			logsForHabit = make([]domain.HabitLog, 0)
+		}
+		habitsWithLogs[i] = domain.HabitWithLogs{
+			Habit: habit,
+			Logs:  logsForHabit,
+		}
+	}
+
+	return habitsWithLogs, nil
 }
 
 type LogHabitParams struct {

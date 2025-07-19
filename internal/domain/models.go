@@ -30,7 +30,7 @@ type HabitLog struct {
 	UpdatedAt time.Time `json:"updatedAt"`
 }
 
-type HabitDetails struct {
-	Habit Habit      `json:"habit"`
-	Logs  []HabitLog `json:"logs"`
+type HabitWithLogs struct {
+	Habit
+	Logs []HabitLog `json:"logs"`
 }

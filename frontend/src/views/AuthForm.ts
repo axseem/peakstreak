@@ -1,6 +1,7 @@
 import { h, text, type VNode, type Dispatchable } from "hyperapp";
 import type { State } from "../types";
-import { SetView, LoginFx, SignUpFx } from "../state";
+import { LoginFx, SignUpFx } from "../state";
+import { NavigateFx } from "../router"; // Import the navigation effect
 import { Input } from "../components/Input";
 import { Button } from "../components/Button";
 
@@ -8,7 +9,7 @@ export const AuthForm = (props: { isLogin: boolean }) => (state: State): VNode<S
   const buttonText = state.isLoading ? "Loading..." : props.isLogin ? "Log In" : "Create Account";
   const questionText = props.isLogin ? "Don't have an account? " : "Already have an account? "
   const linkText = props.isLogin ? "Sign Up" : "Log In";
-  const viewToogle = props.isLogin ? "signup" : "login";
+  const pathToggle = props.isLogin ? "/signup" : "/login";
 
   const onsubmit = (state: State, event: SubmitEvent): Dispatchable<State, any> => {
     event.preventDefault();
@@ -24,7 +25,11 @@ export const AuthForm = (props: { isLogin: boolean }) => (state: State): VNode<S
   const footer = (
     h<State>("div", { class: "flex gap-2" }, [
       h("span", { class: "text-neutral-400" }, text(questionText)),
-      h("a", { class: "underline cursor-pointer", onclick: [SetView, viewToogle] }, text(linkText)),
+      h("a", {
+        class: "underline cursor-pointer",
+        onclick: (state: State) => [state, [NavigateFx, { path: pathToggle }]],
+        href: pathToggle
+      }, text(linkText)),
     ])
   );
 
@@ -39,4 +44,3 @@ export const AuthForm = (props: { isLogin: boolean }) => (state: State): VNode<S
     footer
   ]);
 }
-

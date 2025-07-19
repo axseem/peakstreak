@@ -233,3 +233,20 @@ func (h *APIHandler) LogHabit(w http.ResponseWriter, r *http.Request) {
 
 	writeJSON(w, http.StatusOK, log)
 }
+
+func (h *APIHandler) GetMyHabits(w http.ResponseWriter, r *http.Request) {
+	userID, ok := getUserIDFromContext(r.Context())
+	if !ok {
+		errorResponse(w, http.StatusUnauthorized, "Authentication error")
+		return
+	}
+
+	habitsWithLogs, err := h.service.GetAllHabitsWithLogs(r.Context(), userID)
+	if err != nil {
+		slog.Error("failed to get habits with logs", "error", err, "userID", userID.String())
+		errorResponse(w, http.StatusInternalServerError, "Could not retrieve habits")
+		return
+	}
+
+	writeJSON(w, http.StatusOK, habitsWithLogs)
+}

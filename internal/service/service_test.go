@@ -84,6 +84,14 @@ func (m *MockRepository) GetHabitLogs(ctx context.Context, habitID uuid.UUID, st
 	return args.Get(0).([]domain.HabitLog), args.Error(1)
 }
 
+func (m *MockRepository) GetLogsForHabits(ctx context.Context, habitIDs []uuid.UUID, start, end time.Time) ([]domain.HabitLog, error) {
+	args := m.Called(ctx, habitIDs, start, end)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]domain.HabitLog), args.Error(1)
+}
+
 func (m *MockRepository) GetUsers(ctx context.Context) ([]domain.User, error) {
 	args := m.Called(ctx)
 	if args.Get(0) == nil {
@@ -242,4 +250,61 @@ func TestGetPublicUserProfile_Success(t *testing.T) {
 	assert.Len(t, habits, 1)
 	assert.Equal(t, "Workout", habits[0].Name)
 	mockRepo.AssertExpectations(t)
+}
+
+func TestGetAllHabitsWithLogs_Success(t *testing.T) {
+	mockRepo := new(MockRepository)
+	s := New(mockRepo)
+	ctx := context.Background()
+
+	userID := uuid.New()
+	habit1ID := uuid.New()
+	habit2ID := uuid.New()
+
+	testHabits := []domain.Habit{
+		{ID: habit1ID, UserID: userID, Name: "Workout"},
+		{ID: habit2ID, UserID: userID, Name: "Read"},
+	}
+
+	testLogs := []domain.HabitLog{
+		{ID: uuid.New(), HabitID: habit1ID, LogDate: time.Now().AddDate(0, 0, -1), Status: true},
+		{ID: uuid.New(), HabitID: habit1ID, LogDate: time.Now().AddDate(0, 0, -2), Status: true},
+	}
+
+	mockRepo.On("GetHabitsByUserID", ctx, userID).Return(testHabits, nil)
+	mockRepo.On("GetLogsForHabits", ctx, []uuid.UUID{habit1ID, habit2ID}, mock.AnythingOfType("time.Time"), mock.AnythingOfType("time.Time")).Return(testLogs, nil)
+
+	habitsWithLogs, err := s.GetAllHabitsWithLogs(ctx, userID)
+
+	assert.NoError(t, err)
+	assert.NotNil(t, habitsWithLogs)
+	assert.Len(t, habitsWithLogs, 2)
+
+	assert.Equal(t, habit1ID, habitsWithLogs[0].ID)
+	assert.Equal(t, "Workout", habitsWithLogs[0].Name)
+	assert.Len(t, habitsWithLogs[0].Logs, 2)
+
+	assert.Equal(t, habit2ID, habitsWithLogs[1].ID)
+	assert.Equal(t, "Read", habitsWithLogs[1].Name)
+	assert.Len(t, habitsWithLogs[1].Logs, 0)
+
+	mockRepo.AssertExpectations(t)
+}
+
+func TestGetAllHabitsWithLogs_NoHabits(t *testing.T) {
+	mockRepo := new(MockRepository)
+	s := New(mockRepo)
+	ctx := context.Background()
+	userID := uuid.New()
+
+	mockRepo.On("GetHabitsByUserID", ctx, userID).Return([]domain.Habit{}, nil)
+
+	habitsWithLogs, err := s.GetAllHabitsWithLogs(ctx, userID)
+
+	assert.NoError(t, err)
+	assert.NotNil(t, habitsWithLogs)
+	assert.Len(t, habitsWithLogs, 0)
+
+	mockRepo.AssertExpectations(t)
+	mockRepo.AssertNotCalled(t, "GetLogsForHabits", ctx, mock.Anything, mock.Anything, mock.Anything)
 }
