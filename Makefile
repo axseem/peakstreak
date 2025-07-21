@@ -1,7 +1,7 @@
-.PHONY: run test build migrate-up migrate-down docker-build docker-run build-frontend clean-frontend
-.PHONY: run test build migrate-up migrate-down docker-build docker-run install-frontend build-frontend dev-frontend clean
+.PHONY: build build-frontend clean dev dev-backend dev-frontend docker-build install-frontend migrate-create migrate-down migrate-up run run-db test
 
 BINARY_NAME=peakstreak
+DEV_BINARY_NAME=peakstreak-dev
 BINARY_PATH=./cmd/api
 
 FRONTEND_DIR=./frontend
@@ -13,11 +13,19 @@ run:
 	@echo "Running the Go application..."
 	go run ${BINARY_PATH}/main.go
 
-dev: build-frontend
-	@echo "Running the Go application with hot-reloaded frontend..."
-	@# In one terminal, run `make dev-frontend`. In another, run `make run`.
-	@echo "Please run 'make dev-frontend' in a separate terminal for frontend hot-reloading."
-	go run ${BINARY_PATH}/main.go
+dev:
+	@trap 'echo "Stopping servers..."; kill 0' INT; \
+	make dev-frontend & \
+	make dev-backend & \
+	wait
+
+dev-backend:
+	@echo "Starting backend development server with hot-reloading (air)..."
+	@air
+
+dev-frontend:
+	@echo "Starting frontend development server..."
+	@cd ${FRONTEND_DIR} && npm run dev
 
 test:
 	@echo "Running tests..."
@@ -30,6 +38,7 @@ build: build-frontend
 clean:
 	@echo "Cleaning up build artifacts..."
 	rm -f ./bin/${BINARY_NAME}
+	rm -f ./bin/${DEV_BINARY_NAME}
 	rm -rf ${FRONTEND_DIR}/build
 	rm -rf ${FRONTEND_DIR}/node_modules
 
@@ -40,10 +49,6 @@ install-frontend:
 build-frontend:
 	@echo "Building frontend for production..."
 	@cd ${FRONTEND_DIR} && npm install && npm run build
-
-dev-frontend:
-	@echo "Starting frontend development server..."
-	@cd ${FRONTEND_DIR} && npm run dev
 
 migrate-create:
 	@echo "Creating migration file: ${name}"

@@ -23,6 +23,7 @@
             pkgs.go_1_24
             pkgs.gopls
             pkgs.delve
+            pkgs.air
             pkgs.bun
             pkgs.postgresql_17
             go-migrate-pg
@@ -67,9 +68,7 @@
             echo ""
             echo "Next steps:"
             echo "1. Run 'make migrate-up' to apply database migrations."
-            echo "2. In one terminal: 'make run' (for the backend)"
-            echo "3. In a second terminal: 'make dev-frontend' (for frontend hot-reloading)"
-            echo ""
+            echo "2. Run 'make dev' to start both backend and frontend with hot-reloading."
           '';
         };
       }
