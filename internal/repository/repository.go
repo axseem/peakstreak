@@ -42,7 +42,7 @@ type HabitRepository interface {
 	GetHabitByID(ctx context.Context, habitID uuid.UUID) (*domain.Habit, error)
 	UpsertHabitLog(ctx context.Context, log *domain.HabitLog) error
 	GetHabitLogs(ctx context.Context, habitID uuid.UUID, startDate, endDate time.Time) ([]domain.HabitLog, error)
-	GetLogsForHabits(ctx context.Context, habitIDs []uuid.UUID, startDate, endDate time.Time) ([]domain.HabitLog, error)
+	GetLogsForHabits(ctx context.Context, habitIDs []uuid.UUID) ([]domain.HabitLog, error)
 }
 
 type AllInOneRepository interface {

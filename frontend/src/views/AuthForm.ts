@@ -39,7 +39,7 @@ export const AuthForm = (props: { isLogin: boolean }) => (state: State): VNode<S
       !props.isLogin && Input({ label: "Email", id: "email", type: "email", required: true }),
       Input({ label: "Password", id: "password", type: "password", required: true }),
       state.error ? h<State>("p", { class: "text-red-400" }, text(state.error)) : null,
-      Button({ text: buttonText, type: "submit", disabled: state.isLoading }),
+      Button({ type: "submit", disabled: state.isLoading }, text(buttonText)),
     ]),
     footer
   ]);

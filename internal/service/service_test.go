@@ -84,8 +84,8 @@ func (m *MockRepository) GetHabitLogs(ctx context.Context, habitID uuid.UUID, st
 	return args.Get(0).([]domain.HabitLog), args.Error(1)
 }
 
-func (m *MockRepository) GetLogsForHabits(ctx context.Context, habitIDs []uuid.UUID, start, end time.Time) ([]domain.HabitLog, error) {
-	args := m.Called(ctx, habitIDs, start, end)
+func (m *MockRepository) GetLogsForHabits(ctx context.Context, habitIDs []uuid.UUID) ([]domain.HabitLog, error) {
+	args := m.Called(ctx, habitIDs)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
@@ -272,7 +272,7 @@ func TestGetAllHabitsWithLogs_Success(t *testing.T) {
 	}
 
 	mockRepo.On("GetHabitsByUserID", ctx, userID).Return(testHabits, nil)
-	mockRepo.On("GetLogsForHabits", ctx, []uuid.UUID{habit1ID, habit2ID}, mock.AnythingOfType("time.Time"), mock.AnythingOfType("time.Time")).Return(testLogs, nil)
+	mockRepo.On("GetLogsForHabits", ctx, []uuid.UUID{habit1ID, habit2ID}).Return(testLogs, nil)
 
 	habitsWithLogs, err := s.GetAllHabitsWithLogs(ctx, userID)
 
@@ -306,5 +306,5 @@ func TestGetAllHabitsWithLogs_NoHabits(t *testing.T) {
 	assert.Len(t, habitsWithLogs, 0)
 
 	mockRepo.AssertExpectations(t)
-	mockRepo.AssertNotCalled(t, "GetLogsForHabits", ctx, mock.Anything, mock.Anything, mock.Anything)
+	mockRepo.AssertNotCalled(t, "GetLogsForHabits", ctx, mock.Anything)
 }

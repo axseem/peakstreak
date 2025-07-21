@@ -1,12 +1,23 @@
-import { h, text as t, type VNode } from "hyperapp"
+import { h, type VNode } from "hyperapp"
 
-type InputProps = Record<string, unknown> & {
-  text: string;
-};
+type ButtonProps = Record<string, unknown>;
 
-export const Button = <State>({ text, ...rest }: InputProps): VNode<State> => {
-  return h("button", {
-    class: "bg-white text-black hover:cursor-pointer rounded p-2",
-    ...rest
-  }, t(text))
+export const Button = <State>(
+  props: ButtonProps,
+  children: VNode<State> | VNode<State>[]
+): VNode<State> => {
+  const { class: customClass, ...rest } = props;
+  const finalClass = [
+    "bg-white text-black text-nowrap hover:cursor-pointer rounded-lg py-2 px-4 disabled:cursor-not-allowed disabled:bg-neutral-600 disabled:text-neutral-900 enabled:hover:bg-neutral-100",
+    customClass
+  ].filter(Boolean).join(" ");
+
+  return h(
+    "button",
+    {
+      class: finalClass,
+      ...rest
+    },
+    children
+  );
 };

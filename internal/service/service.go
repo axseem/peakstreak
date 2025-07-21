@@ -157,10 +157,7 @@ func (s *Service) GetAllHabitsWithLogs(ctx context.Context, userID uuid.UUID) ([
 		habitIDs[i] = habit.ID
 	}
 
-	endDate := time.Now()
-	startDate := endDate.AddDate(0, 0, -90)
-
-	logs, err := s.repo.GetLogsForHabits(ctx, habitIDs, startDate, endDate)
+	logs, err := s.repo.GetLogsForHabits(ctx, habitIDs)
 	if err != nil {
 		return nil, err
 	}

@@ -1,8 +1,6 @@
-// frontend/src/state.ts
-
 import { api } from "./api";
-import type { State, User, Habit } from "./types";
-import { path_to_view, NavigateFx } from "./router"; // Import router helpers
+import type { State, User, HabitWithLogs, HabitLog } from "./types";
+import { path_to_view, NavigateFx } from "./router";
 
 const savedUser = localStorage.getItem("peakstreak_user");
 const savedToken = localStorage.getItem("peakstreak_token");
@@ -44,15 +42,18 @@ export const SetAuth = (state: State, { user, token }: { user: User, token: stri
   return [newState, [NavigateFx, { path: "/dashboard", replace: true }]];
 };
 
-export const SetHabits = (state: State, habits: Habit[]): State => {
-  const habitsWithStatus = habits.map(h => ({ ...h, loggedToday: false }));
-  return { ...state, habits: habitsWithStatus, isLoading: false };
+export const SetHabits = (state: State, habits: HabitWithLogs[]): State => {
+  return { ...state, habits, isLoading: false };
 };
 
-export const MarkHabitAsLogged = (state: State, habitId: string): State => ({
+export const AddHabitLog = (state: State, { habitId, log }: { habitId: string, log: HabitLog }): State => ({
   ...state,
   isLoading: false,
-  habits: state.habits.map(h => h.id === habitId ? { ...h, loggedToday: true } : h),
+  habits: state.habits.map(h =>
+    h.id === habitId
+      ? { ...h, logs: [...h.logs, log].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()) }
+      : h
+  ),
 });
 
 export const Logout = (_state: State): [State, any] => {
@@ -65,10 +66,10 @@ export const Logout = (_state: State): [State, any] => {
 
 // --- Effects (Asynchronous Side-Effects) ---
 
-export const FetchHabitsFx = (dispatch: any, { token, username }: { token: string, username: string }) => {
+export const FetchHabitsFx = (dispatch: any, { token }: { token: string }) => {
   dispatch(SetLoading, true);
-  api.get(`/api/user/${username}`, token)
-    .then(data => dispatch(SetHabits, data.habits || []))
+  api.get(`/api/me/habit`, token)
+    .then(data => dispatch(SetHabits, data || []))
     .catch(err => dispatch(SetError, err.message));
 };
 
@@ -76,9 +77,8 @@ export const LoginFx = (dispatch: any, { identifier, password }: any) => {
   dispatch(SetLoading, true);
   api.post("/api/auth/login", { identifier, password })
     .then(data => {
-      // SetAuth will handle the state update and navigation
       dispatch(SetAuth, data);
-      FetchHabitsFx(dispatch, { token: data.token, username: data.user.username });
+      FetchHabitsFx(dispatch, { token: data.token });
     })
     .catch(err => dispatch(SetError, err.message));
 };
@@ -90,11 +90,11 @@ export const SignUpFx = (dispatch: any, { username, email, password }: any) => {
     .catch(err => dispatch(SetError, err.message));
 };
 
-export const CreateHabitFx = (dispatch: any, { name, token, username }: { name: string, token: string, username: string }) => {
+export const CreateHabitFx = (dispatch: any, { name, token }: { name: string, token: string }) => {
   dispatch(SetLoading, true);
   api.post("/api/habit", { name }, token)
     .then(() => {
-      FetchHabitsFx(dispatch, { token, username });
+      FetchHabitsFx(dispatch, { token });
     })
     .catch(err => dispatch(SetError, err.message));
 };
@@ -103,7 +103,7 @@ export const LogHabitFx = (dispatch: any, { habitId, token }: { habitId: string,
   const date = new Date().toISOString().split('T')[0];
   dispatch(SetLoading, true);
   api.post(`/api/habit/${habitId}/log`, { date, status: true }, token)
-    .then(() => dispatch(MarkHabitAsLogged, habitId))
+    .then((newLog) => dispatch(AddHabitLog, { habitId, log: newLog }))
     .catch(err => dispatch(SetError, err.message));
 };
 
@@ -114,6 +114,6 @@ export const initFx = (dispatch: any, state: State) => {
   }
 
   if (state.user && state.token) {
-    FetchHabitsFx(dispatch, { token: state.token, username: state.user.username });
+    FetchHabitsFx(dispatch, { token: state.token });
   }
 };

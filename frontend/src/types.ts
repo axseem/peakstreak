@@ -11,13 +11,22 @@ export type Habit = {
   createdAt: string;
 };
 
-export type HabitWithStatus = Habit & { loggedToday: boolean };
+export type HabitLog = {
+  id: string;
+  habitId: string;
+  date: string;
+  status: boolean;
+};
+
+export type HabitWithLogs = Habit & {
+  logs: HabitLog[];
+};
 
 export type State = {
   view: "login" | "signup" | "dashboard";
   user: User | null;
   token: string | null;
-  habits: HabitWithStatus[];
+  habits: HabitWithLogs[];
   isLoading: boolean;
   error: string | null;
   newHabitName: string;
