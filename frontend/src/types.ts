@@ -23,7 +23,7 @@ export type HabitWithLogs = Habit & {
 };
 
 export type State = {
-  view: "login" | "signup" | "dashboard" | "not_found";
+  view: "login" | "signup" | "dashboard" | "leaderboard" | "explore" | "create_habit" | "not_found";
   user: User | null;
   token: string | null;
   habits: HabitWithLogs[];

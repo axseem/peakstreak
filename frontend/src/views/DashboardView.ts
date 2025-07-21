@@ -71,7 +71,7 @@ const HabitCard = (habit: HabitWithLogs): VNode<State> => {
     logsByYear[currentYear] = [];
   }
 
-  return h("div", { class: "bg-neutral-900 py-8 rounded-4xl flex flex-col gap-8 overflow-hidden", key: habit.id }, [
+  return h("div", { class: "bg-neutral-900 py-8 rounded-4xl flex flex-col gap-8 overflow-hidden w-full", key: habit.id }, [
     h("div", { class: "flex justify-between items-center px-8" }, [
       h("h3", { class: "text-xl font-bold" }, text(habit.name)),
       Button({
@@ -106,11 +106,8 @@ const HabitCard = (habit: HabitWithLogs): VNode<State> => {
 };
 
 export const DashboardView = (state: State): VNode<State> => {
-  return h("div", { class: "max-w-xl mx-auto p-4 md:p-8 flex flex-col gap-12" }, [
+  return h("div", { class: "flex flex-col gap-12 w-full" }, [
     h("header", { class: "flex justify-between items-center" }, [
-      Button({
-        onclick: Logout
-      }, text("Logout")),
     ]),
 
     h("div", {}, [

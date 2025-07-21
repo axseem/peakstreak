@@ -5,6 +5,9 @@ const routes: Record<string, State["view"]> = {
   "/login": "login",
   "/signup": "signup",
   "/dashboard": "dashboard",
+  "/leaderboard": "leaderboard",
+  "/explore": "explore",
+  "/create-habit": "create_habit",
 };
 
 export const path_to_view = (path: string): State["view"] => {
