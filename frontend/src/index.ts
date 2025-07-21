@@ -11,6 +11,8 @@ const view = (state: State) => {
     case "login": return AuthForm({ isLogin: true })(state);
     case "signup": return AuthForm({ isLogin: false })(state);
     case "dashboard": return DashboardView(state);
+    case "not_found":
+      return h<State>("div", { class: "w-full h-screen flex items-center justify-center" }, text("404 - Page Not Found"));
     default:
       return h<State>("div", {}, text(`Page not found for view: ${state.view}`));
   }

@@ -21,7 +21,24 @@ export const initialState: State = {
 
 // --- Actions (Synchronous State Updaters) ---
 
-export const SetView = (state: State, view: State["view"]): State => ({ ...state, view, error: null });
+export const SetView = (state: State, view: State["view"]): [State, any] | State => {
+  if (state.view === view && view !== "dashboard") {
+    return state;
+  }
+
+  const authRequired = view === "dashboard";
+  if (authRequired && !state.token) {
+    return [state, [NavigateFx, { path: "/login", replace: true }]];
+  }
+
+  const newState = { ...state, view, error: null };
+
+  if (view === "dashboard" && newState.token) {
+    return [newState, [FetchHabitsFx, { token: newState.token }]];
+  }
+
+  return newState;
+};
 
 export const SetError = (state: State, error: string | null): State => {
   console.error("error: " + error);
@@ -78,7 +95,6 @@ export const LoginFx = (dispatch: any, { identifier, password }: any) => {
   api.post("/api/auth/login", { identifier, password })
     .then(data => {
       dispatch(SetAuth, data);
-      FetchHabitsFx(dispatch, { token: data.token });
     })
     .catch(err => dispatch(SetError, err.message));
 };
@@ -94,7 +110,8 @@ export const CreateHabitFx = (dispatch: any, { name, token }: { name: string, to
   dispatch(SetLoading, true);
   api.post("/api/habit", { name }, token)
     .then(() => {
-      FetchHabitsFx(dispatch, { token });
+      // Re-trigger SetView to refresh habits
+      dispatch(SetView, "dashboard");
     })
     .catch(err => dispatch(SetError, err.message));
 };
@@ -108,12 +125,9 @@ export const LogHabitFx = (dispatch: any, { habitId, token }: { habitId: string,
 };
 
 export const initFx = (dispatch: any, state: State) => {
-  if (state.view === "dashboard" && (!state.user || !state.token)) {
-    dispatch(NavigateFx, { path: "/login", replace: true });
-    return;
+  if (window.location.pathname === "/") {
+    history.replaceState({ view: 'dashboard' }, "", '/dashboard');
   }
 
-  if (state.user && state.token) {
-    FetchHabitsFx(dispatch, { token: state.token });
-  }
+  dispatch(SetView, state.view);
 };

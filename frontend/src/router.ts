@@ -8,7 +8,10 @@ const routes: Record<string, State["view"]> = {
 };
 
 export const path_to_view = (path: string): State["view"] => {
-  return routes[path] || "/dashboard";
+  if (path === "/") {
+    return "dashboard";
+  }
+  return routes[path] || "not_found";
 };
 
 export const NavigateFx = (dispatch: any, { path, replace = false }: { path: string, replace?: boolean }) => {
