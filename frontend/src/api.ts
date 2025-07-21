@@ -7,8 +7,9 @@ export const api = {
     if (!res.ok) throw new Error(data.error || "An unknown error occurred");
     return data;
   },
-  async get(path: string, token: string) {
-    const headers: HeadersInit = { "Authorization": `Bearer ${token}` };
+  async get(path: string, token: string | null) {
+    const headers: HeadersInit = {};
+    if (token) headers["Authorization"] = `Bearer ${token}`;
     const res = await fetch(path, { headers });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || "An unknown error occurred");

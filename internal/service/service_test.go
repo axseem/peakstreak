@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/axseem/peakstreak/internal/domain"
+	"github.com/axseem/peakstreak/internal/repository"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -225,7 +226,7 @@ func TestLogHabit_AccessDenied(t *testing.T) {
 	mockRepo.AssertNotCalled(t, "UpsertHabitLog", ctx, mock.Anything)
 }
 
-func TestGetPublicUserProfile_Success(t *testing.T) {
+func TestGetProfileData_Owner_Success(t *testing.T) {
 	mockRepo := new(MockRepository)
 	s := New(mockRepo)
 	ctx := context.Background()
@@ -233,22 +234,70 @@ func TestGetPublicUserProfile_Success(t *testing.T) {
 	testUser := &domain.User{
 		ID:             uuid.New(),
 		Username:       "testuser",
-		Email:          "test@example.com",
 		HashedPassword: "a_hash",
 	}
-	testHabits := []domain.Habit{{ID: uuid.New(), UserID: testUser.ID, Name: "Workout"}}
+	habit1ID := uuid.New()
+	testHabits := []domain.Habit{{ID: habit1ID, UserID: testUser.ID, Name: "Workout"}}
+	testLogs := []domain.HabitLog{{ID: uuid.New(), HabitID: habit1ID, Status: true}}
 
 	mockRepo.On("GetUserByUsername", ctx, "testuser").Return(testUser, nil)
 	mockRepo.On("GetHabitsByUserID", ctx, testUser.ID).Return(testHabits, nil)
+	mockRepo.On("GetLogsForHabits", ctx, []uuid.UUID{habit1ID}).Return(testLogs, nil)
 
-	user, habits, err := s.GetPublicUserProfile(ctx, "testuser")
+	profileData, err := s.GetProfileData(ctx, "testuser", testUser.ID)
 
 	assert.NoError(t, err)
-	assert.NotNil(t, user)
-	assert.Equal(t, "testuser", user.Username)
-	assert.Empty(t, user.HashedPassword, "Hashed password should be cleared for public profiles")
-	assert.Len(t, habits, 1)
-	assert.Equal(t, "Workout", habits[0].Name)
+	assert.NotNil(t, profileData)
+	assert.True(t, profileData.IsOwner)
+	assert.Equal(t, "testuser", profileData.User.Username)
+	assert.Empty(t, profileData.User.HashedPassword, "Hashed password should be cleared")
+	assert.Len(t, profileData.Habits, 1)
+	assert.Len(t, profileData.Habits[0].Logs, 1, "Logs should be included for the owner")
+	mockRepo.AssertExpectations(t)
+}
+
+func TestGetProfileData_NotOwner_Success(t *testing.T) {
+	mockRepo := new(MockRepository)
+	s := New(mockRepo)
+	ctx := context.Background()
+
+	testUser := &domain.User{
+		ID:             uuid.New(),
+		Username:       "testuser",
+		HashedPassword: "a_hash",
+	}
+	visitorID := uuid.New()
+	habit1ID := uuid.New()
+	testHabits := []domain.Habit{{ID: habit1ID, UserID: testUser.ID, Name: "Workout"}}
+	testLogs := []domain.HabitLog{{ID: uuid.New(), HabitID: habit1ID, Status: true}}
+
+	mockRepo.On("GetUserByUsername", ctx, "testuser").Return(testUser, nil)
+	mockRepo.On("GetHabitsByUserID", ctx, testUser.ID).Return(testHabits, nil)
+	mockRepo.On("GetLogsForHabits", ctx, []uuid.UUID{habit1ID}).Return(testLogs, nil)
+
+	profileData, err := s.GetProfileData(ctx, "testuser", visitorID)
+
+	assert.NoError(t, err)
+	assert.NotNil(t, profileData)
+	assert.False(t, profileData.IsOwner)
+	assert.Equal(t, "testuser", profileData.User.Username)
+	assert.Len(t, profileData.Habits, 1)
+	assert.Len(t, profileData.Habits[0].Logs, 1, "Logs should be included for a visitor")
+	mockRepo.AssertExpectations(t)
+}
+
+func TestGetProfileData_UserNotFound(t *testing.T) {
+	mockRepo := new(MockRepository)
+	s := New(mockRepo)
+	ctx := context.Background()
+
+	mockRepo.On("GetUserByUsername", ctx, "nonexistent").Return(nil, repository.ErrUserNotFound)
+
+	profileData, err := s.GetProfileData(ctx, "nonexistent", uuid.New())
+
+	assert.Error(t, err)
+	assert.True(t, errors.Is(err, repository.ErrUserNotFound))
+	assert.Nil(t, profileData)
 	mockRepo.AssertExpectations(t)
 }
 

@@ -22,11 +22,17 @@ export type HabitWithLogs = Habit & {
   logs: HabitLog[];
 };
 
+export type ProfileData = {
+  user: User;
+  habits: HabitWithLogs[];
+  isOwner: boolean;
+};
+
 export type State = {
-  view: "login" | "signup" | "dashboard" | "leaderboard" | "explore" | "create_habit" | "not_found";
+  view: "login" | "signup" | "profile" | "leaderboard" | "explore" | "not_found" | "home";
   user: User | null;
   token: string | null;
-  habits: HabitWithLogs[];
+  profileData: ProfileData | null;
   isLoading: boolean;
   error: string | null;
   newHabitName: string;

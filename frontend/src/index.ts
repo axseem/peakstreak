@@ -2,7 +2,7 @@ import { h, text, app } from "hyperapp";
 import type { State } from "./types";
 import { initialState, initFx } from "./state";
 import { AuthForm } from "./views/AuthForm";
-import { DashboardView } from "./views/DashboardView";
+import { ProfileView } from "./views/ProfileView";
 import { MainLayout } from "./views/MainLayout";
 import { PopStateSub } from "./router";
 import "./index.css";
@@ -13,10 +13,9 @@ const renderView = (state: State) => {
   switch (state.view) {
     case "login": return AuthForm({ isLogin: true })(state);
     case "signup": return AuthForm({ isLogin: false })(state);
-    case "dashboard": return DashboardView(state);
+    case "profile": return ProfileView(state);
     case "leaderboard": return ComingSoon("Leaderboard");
     case "explore": return ComingSoon("Explore");
-    case "create_habit": return ComingSoon("Create Habit");
     case "not_found":
     default:
       return h<State>("div", { class: "w-full h-screen flex items-center justify-center" }, text("404 - Page Not Found"));
@@ -27,7 +26,7 @@ const view = (state: State) => {
   const viewsWithoutSidebar: State["view"][] = ["login", "signup"];
   const page = renderView(state);
 
-  if (viewsWithoutSidebar.includes(state.view) || !state.token) {
+  if (viewsWithoutSidebar.includes(state.view)) {
     return page;
   }
 

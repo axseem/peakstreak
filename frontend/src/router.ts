@@ -1,36 +1,43 @@
 import type { State } from "./types";
 import { SetView } from "./state";
 
-const routes: Record<string, State["view"]> = {
+const staticRoutes: Record<string, State["view"]> = {
   "/login": "login",
   "/signup": "signup",
-  "/dashboard": "dashboard",
   "/leaderboard": "leaderboard",
   "/explore": "explore",
-  "/create-habit": "create_habit",
 };
 
-export const path_to_view = (path: string): State["view"] => {
+export const path_to_view = (path: string): { view: State["view"], username?: string } => {
   if (path === "/") {
-    return "dashboard";
+    return { view: "home" };
   }
-  return routes[path] || "not_found";
+  if (staticRoutes[path]) {
+    return { view: staticRoutes[path] };
+  }
+  if (path.startsWith("/@")) {
+    const username = path.substring(2);
+    if (username) {
+      return { view: "profile", username };
+    }
+  }
+  return { view: "not_found" };
 };
 
 export const NavigateFx = (dispatch: any, { path, replace = false }: { path: string, replace?: boolean }) => {
-  const newView = path_to_view(path);
+  const { view, username } = path_to_view(path);
   if (replace) {
-    history.replaceState({ view: newView }, "", path);
+    history.replaceState({ view, username }, "", path);
   } else {
-    history.pushState({ view: newView }, "", path);
+    history.pushState({ view, username }, "", path);
   }
-  dispatch(SetView, newView);
+  dispatch(SetView, { view, username });
 };
 
 const onPopState = (dispatch: any) => {
-  const handler = () => {
-    const newView = path_to_view(window.location.pathname);
-    dispatch(SetView, newView);
+  const handler = (event: PopStateEvent) => {
+    const { view, username } = event.state || path_to_view(window.location.pathname);
+    dispatch(SetView, { view, username });
   };
   window.addEventListener("popstate", handler);
   return () => window.removeEventListener("popstate", handler);

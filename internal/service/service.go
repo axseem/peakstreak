@@ -83,19 +83,31 @@ func (s *Service) GetUsers(ctx context.Context) ([]domain.User, error) {
 	return users, nil
 }
 
-func (s *Service) GetPublicUserProfile(ctx context.Context, username string) (*domain.User, []domain.Habit, error) {
+type ProfileData struct {
+	User    *domain.User           `json:"user"`
+	Habits  []domain.HabitWithLogs `json:"habits"`
+	IsOwner bool                   `json:"isOwner"`
+}
+
+func (s *Service) GetProfileData(ctx context.Context, username string, authenticatedUserID uuid.UUID) (*ProfileData, error) {
 	user, err := s.repo.GetUserByUsername(ctx, username)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
-
-	habits, err := s.repo.GetHabitsByUserID(ctx, user.ID)
-	if err != nil {
-		return nil, nil, err
-	}
-
 	user.HashedPassword = ""
-	return user, habits, nil
+
+	isOwner := user.ID == authenticatedUserID
+
+	habitsWithLogs, err := s.GetAllHabitsWithLogs(ctx, user.ID)
+	if err != nil {
+		return nil, err
+	}
+
+	return &ProfileData{
+		User:    user,
+		Habits:  habitsWithLogs,
+		IsOwner: isOwner,
+	}, nil
 }
 
 type CreateHabitParams struct {

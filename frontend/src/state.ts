@@ -1,43 +1,44 @@
 import { api } from "./api";
-import type { State, User, HabitWithLogs, HabitLog } from "./types";
+import type { State, User, HabitWithLogs, HabitLog, ProfileData } from "./types";
 import { path_to_view, NavigateFx } from "./router";
 
 const savedUser = localStorage.getItem("peakstreak_user");
 const savedToken = localStorage.getItem("peakstreak_token");
 
-const initialPath = window.location.pathname;
-const initialView = path_to_view(initialPath);
+const { view: initialView, username: initialUsername } = path_to_view(window.location.pathname);
 
 export const initialState: State = {
   view: initialView,
   user: savedUser ? JSON.parse(savedUser) : null,
   token: savedToken,
-  habits: [],
+  profileData: null,
   isLoading: false,
   error: null,
   newHabitName: "",
 };
 
-
 // --- Actions (Synchronous State Updaters) ---
 
-export const SetView = (state: State, view: State["view"]): [State, any] | State => {
-  if (state.view === view && view !== "dashboard") {
-    return state;
-  }
-
-  const authRequired = view === "dashboard";
-  if (authRequired && !state.token) {
+export const SetView = (state: State, { view, username }: { view: State["view"], username?: string }): [State, any] | State => {
+  if (view === "home") {
+    if (state.token && state.user) {
+      return [state, [NavigateFx, { path: `/@${state.user.username}`, replace: true }]];
+    }
     return [state, [NavigateFx, { path: "/login", replace: true }]];
   }
 
-  const newState = { ...state, view, error: null };
-
-  if (view === "dashboard" && newState.token) {
-    return [newState, [FetchHabitsFx, { token: newState.token }]];
+  const authRequiredViews: State["view"][] = [];
+  if (authRequiredViews.includes(view) && !state.token) {
+    return [state, [NavigateFx, { path: "/login", replace: true }]];
   }
 
-  return newState;
+  const newState = { ...state, view, error: null, isLoading: true };
+
+  if (view === "profile" && username) {
+    return [newState, [FetchProfileFx, { username, token: state.token }]];
+  }
+
+  return { ...newState, isLoading: false };
 };
 
 export const SetError = (state: State, error: string | null): State => {
@@ -56,46 +57,62 @@ export const SetAuth = (state: State, { user, token }: { user: User, token: stri
   localStorage.setItem("peakstreak_user", JSON.stringify(user));
   localStorage.setItem("peakstreak_token", token);
   const newState = { ...state, user, token, isLoading: false, error: null };
-  return [newState, [NavigateFx, { path: "/dashboard", replace: true }]];
+  return [newState, [NavigateFx, { path: `/@${user.username}`, replace: true }]];
 };
 
-export const SetHabits = (state: State, habits: HabitWithLogs[]): State => {
-  return { ...state, habits, isLoading: false };
+export const SetProfileData = (state: State, profileData: ProfileData): State => {
+  return { ...state, profileData, isLoading: false };
 };
 
-export const AddHabitLog = (state: State, { habitId, log }: { habitId: string, log: HabitLog }): State => ({
-  ...state,
-  isLoading: false,
-  habits: state.habits.map(h =>
-    h.id === habitId
-      ? { ...h, logs: [...h.logs, log].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()) }
-      : h
-  ),
-});
+export const AddHabit = (state: State, newHabit: HabitWithLogs): State => {
+  if (!state.profileData) return state;
+  return {
+    ...state,
+    isLoading: false,
+    newHabitName: "",
+    profileData: {
+      ...state.profileData,
+      habits: [newHabit, ...state.profileData.habits]
+    }
+  };
+};
+
+export const AddHabitLog = (state: State, { habitId, log }: { habitId: string, log: HabitLog }): State => {
+  if (!state.profileData) return state;
+  return {
+    ...state,
+    isLoading: false,
+    profileData: {
+      ...state.profileData,
+      habits: state.profileData.habits.map(h =>
+        h.id === habitId
+          ? { ...h, logs: [...h.logs, log].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()) }
+          : h
+      ),
+    }
+  };
+};
 
 export const Logout = (_state: State): [State, any] => {
   localStorage.removeItem("peakstreak_user");
   localStorage.removeItem("peakstreak_token");
-  const newState: State = { ...initialState, view: "login", user: null, token: null };
+  const newState: State = { ...initialState, view: "login", user: null, token: null, profileData: null };
   return [newState, [NavigateFx, { path: "/login", replace: true }]];
 };
 
-
 // --- Effects (Asynchronous Side-Effects) ---
 
-export const FetchHabitsFx = (dispatch: any, { token }: { token: string }) => {
+export const FetchProfileFx = (dispatch: any, { username, token }: { username: string, token: string | null }) => {
   dispatch(SetLoading, true);
-  api.get(`/api/me/habit`, token)
-    .then(data => dispatch(SetHabits, data || []))
+  api.get(`/api/profile/${username}`, token)
+    .then(data => dispatch(SetProfileData, data))
     .catch(err => dispatch(SetError, err.message));
 };
 
 export const LoginFx = (dispatch: any, { identifier, password }: any) => {
   dispatch(SetLoading, true);
   api.post("/api/auth/login", { identifier, password })
-    .then(data => {
-      dispatch(SetAuth, data);
-    })
+    .then(data => dispatch(SetAuth, data))
     .catch(err => dispatch(SetError, err.message));
 };
 
@@ -109,9 +126,9 @@ export const SignUpFx = (dispatch: any, { username, email, password }: any) => {
 export const CreateHabitFx = (dispatch: any, { name, token }: { name: string, token: string }) => {
   dispatch(SetLoading, true);
   api.post("/api/habit", { name }, token)
-    .then(() => {
-      // Re-trigger SetView to refresh habits
-      dispatch(SetView, "dashboard");
+    .then((newHabit) => {
+      const newHabitWithLogs: HabitWithLogs = { ...newHabit, logs: [] };
+      dispatch(AddHabit, newHabitWithLogs);
     })
     .catch(err => dispatch(SetError, err.message));
 };
@@ -124,10 +141,7 @@ export const LogHabitFx = (dispatch: any, { habitId, token }: { habitId: string,
     .catch(err => dispatch(SetError, err.message));
 };
 
-export const initFx = (dispatch: any, state: State) => {
-  if (window.location.pathname === "/") {
-    history.replaceState({ view: 'dashboard' }, "", '/dashboard');
-  }
-
-  dispatch(SetView, state.view);
+export const initFx = (dispatch: any, _state: State) => {
+  const { view, username } = path_to_view(window.location.pathname);
+  dispatch(SetView, { view, username });
 };

@@ -24,7 +24,7 @@ func NewRouter(handler *APIHandler) http.Handler {
 		r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 		})
-		r.Get("/user/{username}", handler.GetPublicUserProfile)
+		r.Get("/profile/{username}", handler.GetProfilePageData)
 
 		r.Route("/auth", func(r chi.Router) {
 			r.Post("/signup", handler.SignUp)
@@ -34,8 +34,6 @@ func NewRouter(handler *APIHandler) http.Handler {
 		r.Group(func(r chi.Router) {
 			r.Use(handler.authMiddleware)
 
-			// r.Get("/me", handler.GetCurrentUserProfile)
-			r.Get("/me/habit", handler.GetMyHabits)
 			r.Post("/habit", handler.CreateHabit)
 			r.Post("/habit/{habitId}/log", handler.LogHabit)
 		})
@@ -58,6 +56,8 @@ func ServeSPA(r chi.Router, staticPath string) {
 		}
 
 		path := r.URL.Path
+		// The path for user profiles like "/@username" will not match a static file,
+		// so it will correctly be served index.html by the else block.
 		if _, err := os.Stat(filepath.Join(staticPath, path)); !os.IsNotExist(err) {
 			http.FileServer(filesDir).ServeHTTP(w, r)
 		} else {

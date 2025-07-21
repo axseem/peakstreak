@@ -34,17 +34,19 @@ const SearchBar = (): VNode<State> =>
 const ProfileLink = (state: State): VNode<State> =>
   h("a",
     {
-      href: `/user/${state.user?.username}`,
+      href: `/@${state.user?.username}`,
       class: "flex items-center gap-3 group",
       onclick: (s: State, event: Event) => {
         event.preventDefault();
-        // Placeholder for navigating to profile, for now, does nothing.
+        if (s.user) {
+          return [s, [NavigateFx, { path: `/@${s.user.username}` }]];
+        }
         return s;
       }
     },
     [
       h("div", { class: "w-10 h-10 bg-neutral-700 rounded-full" }),
-      h("span", { class: "text-neutral-300 group-hover:text-white" }, text("Profile"))
+      h("span", { class: "text-neutral-300 group-hover:text-white" }, text(state.user?.username || "Profile"))
     ]
   );
 
@@ -53,15 +55,13 @@ export const Sidebar = (state: State): VNode<State> =>
     h("div", { class: "flex flex-col gap-4" }, [
       SearchBar(),
       h("nav", { class: "flex flex-col gap-4 mt-4" }, [
-        NavLink({ path: "/dashboard", label: "Dashboard", active: state.view === 'dashboard' }),
+        NavLink({ path: `/@${state.user?.username}`, label: "My Profile", active: state.view === 'profile' && !!state.profileData?.isOwner }),
         NavLink({ path: "/leaderboard", label: "Leaderboard", active: state.view === 'leaderboard' }),
         NavLink({ path: "/explore", label: "Explore", active: state.view === 'explore' }),
-        NavLink({ path: "/create-habit", label: "Create Habit", active: state.view === 'create_habit' }),
       ])
     ]),
     h("div", { class: "mt-auto flex flex-col gap-4" }, [
       ProfileLink(state),
-      // Logout functionality is important, so we'll keep it accessible here.
       h("button", {
         class: "text-left text-neutral-500 hover:text-red-400 transition-colors duration-200 pl-1",
         onclick: Logout

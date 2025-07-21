@@ -4,6 +4,7 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/axseem/peakstreak/internal/auth"
@@ -117,10 +118,23 @@ func (h *APIHandler) Login(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, resp)
 }
 
-func (h *APIHandler) GetPublicUserProfile(w http.ResponseWriter, r *http.Request) {
+func (h *APIHandler) GetProfilePageData(w http.ResponseWriter, r *http.Request) {
 	username := chi.URLParam(r, "username")
 
-	user, habits, err := h.service.GetPublicUserProfile(r.Context(), username)
+	var authenticatedUserID uuid.UUID
+	authHeader := r.Header.Get("Authorization")
+	if authHeader != "" {
+		parts := strings.Split(authHeader, " ")
+		if len(parts) == 2 && strings.ToLower(parts[0]) == "bearer" {
+			tokenString := parts[1]
+			claims, err := auth.ValidateToken(tokenString, h.cfg.JWTSecret)
+			if err == nil { // Silently ignore invalid tokens for this public endpoint
+				authenticatedUserID = claims.UserID
+			}
+		}
+	}
+
+	profileData, err := h.service.GetProfileData(r.Context(), username, authenticatedUserID)
 	if err != nil {
 		if errors.Is(err, repository.ErrUserNotFound) {
 			errorResponse(w, http.StatusNotFound, "User not found")
@@ -130,15 +144,7 @@ func (h *APIHandler) GetPublicUserProfile(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	response := struct {
-		User   *domain.User   `json:"user"`
-		Habits []domain.Habit `json:"habits"`
-	}{
-		User:   user,
-		Habits: habits,
-	}
-
-	writeJSON(w, http.StatusOK, response)
+	writeJSON(w, http.StatusOK, profileData)
 }
 
 type CreateHabitRequest struct {
@@ -232,21 +238,4 @@ func (h *APIHandler) LogHabit(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, log)
-}
-
-func (h *APIHandler) GetMyHabits(w http.ResponseWriter, r *http.Request) {
-	userID, ok := getUserIDFromContext(r.Context())
-	if !ok {
-		errorResponse(w, http.StatusUnauthorized, "Authentication error")
-		return
-	}
-
-	habitsWithLogs, err := h.service.GetAllHabitsWithLogs(r.Context(), userID)
-	if err != nil {
-		slog.Error("failed to get habits with logs", "error", err, "userID", userID.String())
-		errorResponse(w, http.StatusInternalServerError, "Could not retrieve habits")
-		return
-	}
-
-	writeJSON(w, http.StatusOK, habitsWithLogs)
 }
