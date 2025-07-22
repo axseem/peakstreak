@@ -1,8 +1,6 @@
-// Path: frontend/src/views/ProfileView.ts
-// (This file replaces DashboardView.ts)
 import { h, text, type VNode } from "hyperapp";
 import type { State, HabitWithLogs, HabitLog } from "../types";
-import { HandleFormInput, CreateHabitFx, LogHabitFx } from "../state";
+import { HandleFormInput, CreateHabitFx, LogHabitFx, ShowAddHabitForm, HideAddHabitForm } from "../state";
 import { toYYYYMMDD, getDatesForYear, groupLogsByYear } from "../lib/date";
 import { Input } from "../components/Input";
 import { Button } from "../components/Button";
@@ -101,34 +99,71 @@ const HabitCard = (habit: HabitWithLogs, isOwner: boolean, token: string | null)
   ]);
 };
 
-const CreateHabitForm = (state: State): VNode<State> => h("div", {}, [
-  h("form", {
-    class: "flex items-end gap-2",
-    onsubmit: (state: State, event: Event) => {
-      event.preventDefault();
-      if (state.newHabitName.trim() && state.token) {
-        return [
-          state,
-          [CreateHabitFx, { name: state.newHabitName, token: state.token }]
-        ];
-      }
-      return state;
+const InlineCreateHabitForm = (state: State): VNode<State> => h("form", {
+  class: "flex flex-col items-center justify-center gap-4 p-8 w-full h-full",
+  onsubmit: (s: State, event: Event) => {
+    event.preventDefault();
+    if (s.newHabitName.trim() && s.token) {
+      return [s, [CreateHabitFx, { name: s.newHabitName, token: s.token }]];
     }
-  }, [
-    Input({
-      label: "Create new habit",
-      id: "newHabit",
-      placeholder: "Read for 15 minutes",
-      value: state.newHabitName,
-      oninput: HandleFormInput,
-      disabled: state.isLoading,
-    }),
+    return s;
+  },
+}, [
+  Input({
+    label: "What habit do you want to build?",
+    id: "newHabitInline",
+    placeholder: "e.g. Read for 15 minutes",
+    value: state.newHabitName,
+    oninput: HandleFormInput,
+    disabled: state.isLoading,
+    oncreate: (el: HTMLInputElement) => el.focus(),
+    class: "text-center"
+  }),
+  h("div", { class: "flex gap-2 w-full mt-4" }, [
+    Button({
+      type: "button",
+      onclick: HideAddHabitForm,
+      class: "w-full bg-neutral-700 enabled:hover:bg-neutral-800 text-neutral-300"
+    }, text("Cancel")),
     Button({
       type: "submit",
       disabled: state.isLoading || !state.newHabitName.trim(),
+      class: "w-full"
     }, text("Add Habit")),
   ])
 ]);
+
+const AddHabitCard = (state: State): VNode<State> => {
+  if (state.isAddingHabit) {
+    return h("div", {
+      class: "bg-neutral-900 rounded-4xl flex items-center justify-center w-full",
+      key: "add-habit-form"
+    }, [
+      InlineCreateHabitForm(state)
+    ]);
+  }
+
+  return h("div", {
+    key: "add-habit-button",
+    class: "bg-transparent border-2 border-dashed border-neutral-800 rounded-4xl flex items-center justify-center min-h-[16rem] hover:bg-neutral-900 hover:border-neutral-700 transition-colors cursor-pointer",
+    onclick: ShowAddHabitForm
+  }, [
+    h("svg", {
+      xmlns: "http://www.w3.org/2000/svg",
+      fill: "none",
+      viewBox: "0 0 24 24",
+      "stroke-width": 1.5,
+      stroke: "currentColor",
+      class: "w-12 h-12 text-neutral-700"
+    }, [
+      h("path", {
+        "stroke-linecap": "round",
+        "stroke-linejoin": "round",
+        d: "M12 4.5v15m7.5-7.5h-15"
+      })
+    ])
+  ]);
+};
 
 export const ProfileView = (state: State): VNode<State> => {
   if (state.isLoading && !state.profileData) {
@@ -143,15 +178,17 @@ export const ProfileView = (state: State): VNode<State> => {
 
   return h("div", { class: "flex flex-col gap-12 w-full" }, [
     h("header", { class: "flex justify-between items-center" }, [
-      h("h1", { class: "text-3xl font-bold" }, text(user.username)),
+      h("h1", { class: "text-3xl font-bold" }, text("@" + user.username)),
     ]),
 
-    isOwner ? CreateHabitForm(state) : null,
+    h("div", { class: "flex flex-col gap-8" }, [
+      ...habits.map(habit => HabitCard(habit, isOwner, state.token)),
 
-    h("div", { class: "flex flex-col gap-8" },
-      habits.length > 0
-        ? habits.map(habit => HabitCard(habit, isOwner, state.token))
-        : h("p", { class: "text-neutral-400" }, text(isOwner ? "You don't have any habits yet. Add one above to get started!" : "This user hasn't added any habits yet."))
-    )
+      isOwner ? AddHabitCard(state) : null,
+
+      habits.length === 0 && !isOwner
+        ? h("p", { class: "text-neutral-400" }, text("This user hasn't added any habits yet."))
+        : null
+    ])
   ]);
 };

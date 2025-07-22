@@ -46,7 +46,7 @@ const ProfileLink = (state: State): VNode<State> =>
     },
     [
       h("div", { class: "w-10 h-10 bg-neutral-700 rounded-full" }),
-      h("span", { class: "text-neutral-300 group-hover:text-white" }, text(state.user?.username || "Profile"))
+      h("span", { class: "text-neutral-300 group-hover:text-white" }, text("@" + state.user?.username || "Profile"))
     ]
   );
 

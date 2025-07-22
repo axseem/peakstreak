@@ -5,7 +5,7 @@ import { path_to_view, NavigateFx } from "./router";
 const savedUser = localStorage.getItem("peakstreak_user");
 const savedToken = localStorage.getItem("peakstreak_token");
 
-const { view: initialView, username: initialUsername } = path_to_view(window.location.pathname);
+const { view: initialView } = path_to_view(window.location.pathname);
 
 export const initialState: State = {
   view: initialView,
@@ -15,6 +15,7 @@ export const initialState: State = {
   isLoading: false,
   error: null,
   newHabitName: "",
+  isAddingHabit: false,
 };
 
 // --- Actions (Synchronous State Updaters) ---
@@ -43,7 +44,7 @@ export const SetView = (state: State, { view, username }: { view: State["view"],
 
 export const SetError = (state: State, error: string | null): State => {
   console.error("error: " + error);
-  return { ...state, isLoading: false, error };
+  return { ...state, isLoading: false, error, newHabitName: "", isAddingHabit: false };
 };
 
 export const SetLoading = (state: State, isLoading: boolean): State => ({ ...state, isLoading });
@@ -70,6 +71,7 @@ export const AddHabit = (state: State, newHabit: HabitWithLogs): State => {
     ...state,
     isLoading: false,
     newHabitName: "",
+    isAddingHabit: false,
     profileData: {
       ...state.profileData,
       habits: [newHabit, ...state.profileData.habits]
@@ -99,6 +101,17 @@ export const Logout = (_state: State): [State, any] => {
   const newState: State = { ...initialState, view: "login", user: null, token: null, profileData: null };
   return [newState, [NavigateFx, { path: "/login", replace: true }]];
 };
+
+export const ShowAddHabitForm = (state: State): State => ({
+  ...state,
+  isAddingHabit: true,
+});
+
+export const HideAddHabitForm = (state: State): State => ({
+  ...state,
+  isAddingHabit: false,
+  newHabitName: "",
+});
 
 // --- Effects (Asynchronous Side-Effects) ---
 

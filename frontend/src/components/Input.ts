@@ -1,4 +1,5 @@
 import { h, text, type VNode } from "hyperapp"
+import { twMerge } from "tailwind-merge";
 
 type NativeInputProps = Omit<Record<string, unknown>, "id"> & {
   id: string;
@@ -8,12 +9,11 @@ type InputProps = NativeInputProps & {
   label?: string;
 };
 
-const nativeInput = <State>({ class: additionalClass, ...rest }: NativeInputProps): VNode<State> => {
+const nativeInput = <State>({ class: customClass, ...rest }: NativeInputProps): VNode<State> => {
   const baseClass = "bg-neutral-800 rounded-lg py-2 px-4 focus:outline-none min-w-0 flex-grow";
-  const finalClass = [baseClass, additionalClass].filter(Boolean).join(" ");
 
   return h("input", {
-    class: finalClass,
+    class: twMerge(baseClass, customClass),
     ...rest,
   });
 };

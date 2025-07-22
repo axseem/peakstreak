@@ -36,4 +36,5 @@ export type State = {
   isLoading: boolean;
   error: string | null;
   newHabitName: string;
+  isAddingHabit: boolean;
 };

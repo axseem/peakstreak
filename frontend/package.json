@@ -15,6 +15,7 @@
   "dependencies": {
     "@tailwindcss/vite": "^4.1.11",
     "hyperapp": "^2.0.22",
+    "tailwind-merge": "^3.3.1",
     "tailwindcss": "^4.1.11"
   }
 }
