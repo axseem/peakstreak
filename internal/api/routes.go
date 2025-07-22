@@ -35,6 +35,7 @@ func NewRouter(handler *APIHandler) http.Handler {
 			r.Use(handler.authMiddleware)
 
 			r.Post("/habit", handler.CreateHabit)
+			r.Put("/habit/{habitId}", handler.UpdateHabit)
 			r.Post("/habit/{habitId}/log", handler.LogHabit)
 		})
 	})

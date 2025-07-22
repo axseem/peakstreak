@@ -1,6 +1,7 @@
 import { api } from "./api";
 import type { State, User, HabitWithLogs, HabitLog, ProfileData } from "./types";
 import { path_to_view, NavigateFx } from "./router";
+import { toYYYYMMDD } from "./lib/date";
 
 const savedUser = localStorage.getItem("peakstreak_user");
 const savedToken = localStorage.getItem("peakstreak_token");
@@ -17,6 +18,7 @@ export const initialState: State = {
   newHabitName: "",
   isAddingHabit: false,
   isProfileMenuOpen: false,
+  isEditing: false,
 };
 
 // --- Actions (Synchronous State Updaters) ---
@@ -34,7 +36,7 @@ export const SetView = (state: State, { view, username }: { view: State["view"],
     return [state, [NavigateFx, { path: "/login", replace: true }]];
   }
 
-  const newState = { ...state, view, error: null, isLoading: true };
+  const newState = { ...state, view, error: null, isLoading: true, isEditing: false };
 
   if (view === "profile" && username) {
     return [newState, [FetchProfileFx, { username, token: state.token }]];
@@ -80,7 +82,41 @@ export const AddHabit = (state: State, newHabit: HabitWithLogs): State => {
   };
 };
 
-export const AddHabitLog = (state: State, { habitId, log }: { habitId: string, log: HabitLog }): State => {
+export const UpdateHabitLog = (state: State, { habitId, log }: { habitId: string, log: HabitLog }): State => {
+  if (!state.profileData) return state;
+
+  return {
+    ...state,
+    isLoading: false,
+    profileData: {
+      ...state.profileData,
+      habits: state.profileData.habits.map(h => {
+        if (h.id !== habitId) return h;
+
+        const logDate = toYYYYMMDD(new Date(log.date));
+        const existingLogIndex = h.logs.findIndex(l => toYYYYMMDD(new Date(l.date)) === logDate);
+        let newLogs;
+
+        if (existingLogIndex > -1) {
+          if (log.status) {
+            newLogs = [...h.logs];
+            newLogs[existingLogIndex] = log;
+          } else {
+            newLogs = h.logs.filter(l => toYYYYMMDD(new Date(l.date)) !== logDate);
+          }
+        } else if (log.status) {
+          newLogs = [...h.logs, log];
+        } else {
+          newLogs = h.logs;
+        }
+
+        return { ...h, logs: newLogs.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()) };
+      })
+    }
+  };
+};
+
+export const UpdateHabitName = (state: State, { habitId, name }: { habitId: string, name: string }): State => {
   if (!state.profileData) return state;
   return {
     ...state,
@@ -88,10 +124,8 @@ export const AddHabitLog = (state: State, { habitId, log }: { habitId: string, l
     profileData: {
       ...state.profileData,
       habits: state.profileData.habits.map(h =>
-        h.id === habitId
-          ? { ...h, logs: [...h.logs, log].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()) }
-          : h
-      ),
+        h.id === habitId ? { ...h, name } : h
+      )
     }
   };
 };
@@ -122,6 +156,11 @@ export const ToggleProfileMenu = (state: State): State => ({
 export const CloseProfileMenu = (state: State): State => ({
   ...state,
   isProfileMenuOpen: false,
+});
+
+export const ToggleEditMode = (state: State): State => ({
+  ...state,
+  isEditing: !state.isEditing,
 });
 
 
@@ -162,7 +201,22 @@ export const LogHabitFx = (dispatch: any, { habitId, token }: { habitId: string,
   const date = new Date().toISOString().split('T')[0];
   dispatch(SetLoading, true);
   api.post(`/api/habit/${habitId}/log`, { date, status: true }, token)
-    .then((newLog) => dispatch(AddHabitLog, { habitId, log: newLog }))
+    .then((newLog) => dispatch(UpdateHabitLog, { habitId, log: newLog }))
+    .catch(err => dispatch(SetError, err.message));
+};
+
+export const UpdateHabitNameFx = (dispatch: any, { habitId, name, token }: { habitId: string, name: string, token: string }) => {
+  dispatch(SetLoading, true);
+  api.put(`/api/habit/${habitId}`, { name }, token)
+    .then(() => dispatch(UpdateHabitName, { habitId, name }))
+    .catch(err => dispatch(SetError, err.message));
+};
+
+export const ToggleHabitLogFx = (dispatch: any, { habitId, date, currentStatus, token }: { habitId: string, date: string, currentStatus: boolean, token: string }) => {
+  dispatch(SetLoading, true);
+  const newStatus = !currentStatus;
+  api.post(`/api/habit/${habitId}/log`, { date, status: newStatus }, token)
+    .then((newLog) => dispatch(UpdateHabitLog, { habitId, log: newLog }))
     .catch(err => dispatch(SetError, err.message));
 };
 

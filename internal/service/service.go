@@ -128,6 +128,28 @@ func (s *Service) CreateHabit(ctx context.Context, params CreateHabitParams, use
 	return habit, nil
 }
 
+type UpdateHabitParams struct {
+	Name string
+}
+
+func (s *Service) UpdateHabit(ctx context.Context, params UpdateHabitParams, habitID, userID uuid.UUID) (*domain.Habit, error) {
+	habit, err := s.repo.GetHabitByID(ctx, habitID)
+	if err != nil {
+		return nil, err
+	}
+	if habit.UserID != userID {
+		return nil, ErrUserAccessDenied
+	}
+
+	habit.Name = params.Name
+
+	if err := s.repo.UpdateHabit(ctx, habit); err != nil {
+		return nil, err
+	}
+
+	return habit, nil
+}
+
 func (s *Service) GetHabitDetailsForUser(ctx context.Context, habitID, requestingUserID uuid.UUID) (*domain.HabitWithLogs, error) {
 	habit, err := s.repo.GetHabitByID(ctx, habitID)
 	if err != nil {

@@ -38,4 +38,5 @@ export type State = {
   newHabitName: string;
   isAddingHabit: boolean;
   isProfileMenuOpen: boolean;
+  isEditing: boolean;
 };

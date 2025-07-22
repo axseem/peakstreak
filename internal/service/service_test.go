@@ -53,6 +53,11 @@ func (m *MockRepository) CreateHabit(ctx context.Context, habit *domain.Habit) e
 	return args.Error(0)
 }
 
+func (m *MockRepository) UpdateHabit(ctx context.Context, habit *domain.Habit) error {
+	args := m.Called(ctx, habit)
+	return args.Error(0)
+}
+
 func (m *MockRepository) GetHabitsByUserID(ctx context.Context, userID uuid.UUID) ([]domain.Habit, error) {
 	args := m.Called(ctx, userID)
 	if args.Get(0) == nil {
@@ -170,6 +175,50 @@ func TestLoginUser_InvalidPassword(t *testing.T) {
 	assert.True(t, errors.Is(err, ErrInvalidCredentials))
 	assert.Nil(t, loggedInUser)
 	mockRepo.AssertExpectations(t)
+}
+
+func TestUpdateHabit_Success(t *testing.T) {
+	mockRepo := new(MockRepository)
+	s := New(mockRepo)
+	ctx := context.Background()
+
+	userID := uuid.New()
+	habitID := uuid.New()
+	testHabit := &domain.Habit{ID: habitID, UserID: userID, Name: "Old Name"}
+	params := UpdateHabitParams{Name: "New Name"}
+
+	mockRepo.On("GetHabitByID", ctx, habitID).Return(testHabit, nil)
+	mockRepo.On("UpdateHabit", ctx, mock.MatchedBy(func(h *domain.Habit) bool {
+		return h.ID == habitID && h.Name == "New Name"
+	})).Return(nil)
+
+	updatedHabit, err := s.UpdateHabit(ctx, params, habitID, userID)
+
+	assert.NoError(t, err)
+	assert.NotNil(t, updatedHabit)
+	assert.Equal(t, "New Name", updatedHabit.Name)
+	mockRepo.AssertExpectations(t)
+}
+
+func TestUpdateHabit_AccessDenied(t *testing.T) {
+	mockRepo := new(MockRepository)
+	s := New(mockRepo)
+	ctx := context.Background()
+
+	ownerID := uuid.New()
+	attackerID := uuid.New()
+	habitID := uuid.New()
+	testHabit := &domain.Habit{ID: habitID, UserID: ownerID, Name: "Old Name"}
+	params := UpdateHabitParams{Name: "New Name"}
+
+	mockRepo.On("GetHabitByID", ctx, habitID).Return(testHabit, nil)
+
+	_, err := s.UpdateHabit(ctx, params, habitID, attackerID)
+
+	assert.Error(t, err)
+	assert.True(t, errors.Is(err, ErrUserAccessDenied))
+	mockRepo.AssertExpectations(t)
+	mockRepo.AssertNotCalled(t, "UpdateHabit", ctx, mock.Anything)
 }
 
 func TestLogHabit_Success(t *testing.T) {

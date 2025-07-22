@@ -181,6 +181,55 @@ func (h *APIHandler) CreateHabit(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, habit)
 }
 
+type UpdateHabitRequest struct {
+	Name string `json:"name" validate:"required,min=1,max=100"`
+}
+
+func (h *APIHandler) UpdateHabit(w http.ResponseWriter, r *http.Request) {
+	habitIDStr := chi.URLParam(r, "habitId")
+	habitID, err := uuid.Parse(habitIDStr)
+	if err != nil {
+		errorResponse(w, http.StatusBadRequest, "Invalid habit ID format")
+		return
+	}
+
+	var req UpdateHabitRequest
+	if err := readJSON(r, &req); err != nil {
+		errorResponse(w, http.StatusBadRequest, "Invalid request payload")
+		return
+	}
+
+	if err := h.validate.Struct(req); err != nil {
+		validationErrorResponse(w, err)
+		return
+	}
+
+	userID, ok := getUserIDFromContext(r.Context())
+	if !ok {
+		errorResponse(w, http.StatusUnauthorized, "Authentication error")
+		return
+	}
+
+	params := service.UpdateHabitParams{
+		Name: req.Name,
+	}
+
+	_, err = h.service.UpdateHabit(r.Context(), params, habitID, userID)
+	if err != nil {
+		switch {
+		case errors.Is(err, repository.ErrHabitNotFound):
+			errorResponse(w, http.StatusNotFound, "Habit not found")
+		case errors.Is(err, service.ErrUserAccessDenied):
+			errorResponse(w, http.StatusForbidden, "You do not have permission to update this habit")
+		default:
+			errorResponse(w, http.StatusInternalServerError, "Failed to update habit")
+		}
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
 const DATE_FORMAT = "2006-01-02"
 
 type LogHabitRequest struct {

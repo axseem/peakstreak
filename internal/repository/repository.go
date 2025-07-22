@@ -40,6 +40,7 @@ type HabitRepository interface {
 	CreateHabit(ctx context.Context, habit *domain.Habit) error
 	GetHabitsByUserID(ctx context.Context, userID uuid.UUID) ([]domain.Habit, error)
 	GetHabitByID(ctx context.Context, habitID uuid.UUID) (*domain.Habit, error)
+	UpdateHabit(ctx context.Context, habit *domain.Habit) error
 	UpsertHabitLog(ctx context.Context, log *domain.HabitLog) error
 	GetHabitLogs(ctx context.Context, habitID uuid.UUID, startDate, endDate time.Time) ([]domain.HabitLog, error)
 	GetLogsForHabits(ctx context.Context, habitIDs []uuid.UUID) ([]domain.HabitLog, error)

@@ -129,6 +129,18 @@ func (r *PostgresRepository) GetHabitByID(ctx context.Context, habitID uuid.UUID
 	return &habit, nil
 }
 
+func (r *PostgresRepository) UpdateHabit(ctx context.Context, habit *domain.Habit) error {
+	query := `UPDATE habits SET name = $1 WHERE id = $2`
+	tag, err := r.db.Exec(ctx, query, habit.Name, habit.ID)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrHabitNotFound
+	}
+	return nil
+}
+
 func (r *PostgresRepository) UpsertHabitLog(ctx context.Context, log *domain.HabitLog) error {
 	query := `
         INSERT INTO habit_logs (id, habit_id, log_date, status)

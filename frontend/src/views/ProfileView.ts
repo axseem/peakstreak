@@ -1,11 +1,11 @@
-import { h, text, type VNode } from "hyperapp";
+import { h, text, type VNode, type Action } from "hyperapp";
 import type { State, HabitWithLogs, HabitLog } from "../types";
-import { HandleFormInput, CreateHabitFx, LogHabitFx, ShowAddHabitForm, HideAddHabitForm } from "../state";
+import { HandleFormInput, CreateHabitFx, LogHabitFx, ShowAddHabitForm, HideAddHabitForm, ToggleEditMode, UpdateHabitNameFx, ToggleHabitLogFx } from "../state";
 import { toYYYYMMDD, getDatesForYear, groupLogsByYear } from "../lib/date";
 import { Input } from "../components/Input";
 import { Button } from "../components/Button";
 
-const YearTable = ({ year, logs }: { year: number, logs: HabitLog[] }): VNode<State> | null => {
+const YearTable = ({ year, logs, isEditing, habitId, token }: { year: number, logs: HabitLog[], isEditing: boolean, habitId: string, token: string | null }): VNode<State> | null => {
   const logsMap = new Map(logs.map(log => [toYYYYMMDD(new Date(log.date)), log.status]));
   const dates = getDatesForYear(year);
 
@@ -43,11 +43,18 @@ const YearTable = ({ year, logs }: { year: number, logs: HabitLog[] }): VNode<St
             if (!day) {
               return h("td", { key: `empty-${i}`, class: "w-3 h-3" });
             }
-            const isLogged = logsMap.get(toYYYYMMDD(day)) === true;
+            const dateStr = toYYYYMMDD(day);
+            const isLogged = logsMap.get(dateStr) === true;
+            const canToggle = isEditing && new Date(new Date().setUTCHours(0, 0, 0, 0)) >= day;
+
             return h("td", {
-              key: toYYYYMMDD(day),
-              class: `w-3 h-3 rounded-sm ${isLogged ? 'bg-teal-500' : 'bg-neutral-800'}`,
-              title: `${day.toDateString()}: ${isLogged ? 'Completed' : 'Not completed'}`
+              key: dateStr,
+              class: `w-3 h-3 rounded-sm ${isLogged ? 'bg-teal-500' : 'bg-neutral-800'} ${canToggle ? 'cursor-pointer hover:opacity-75' : ''}`,
+              title: `${day.toDateString()}: ${isLogged ? 'Completed' : 'Not completed'}`,
+              onclick: (state: State) => {
+                if (!canToggle || !token) return state;
+                return [state, [ToggleHabitLogFx, { habitId, date: dateStr, currentStatus: isLogged, token }]];
+              }
             });
           })
         )
@@ -56,7 +63,7 @@ const YearTable = ({ year, logs }: { year: number, logs: HabitLog[] }): VNode<St
   ]);
 };
 
-const HabitCard = (habit: HabitWithLogs, isOwner: boolean, token: string | null): VNode<State> => {
+const HabitCard = (habit: HabitWithLogs, isOwner: boolean, token: string | null, isEditing: boolean): VNode<State> => {
   const wasLoggedToday = habit.logs.some(log =>
     new Date(log.date).setUTCHours(0, 0, 0, 0) === new Date().setUTCHours(0, 0, 0, 0)
   );
@@ -70,10 +77,30 @@ const HabitCard = (habit: HabitWithLogs, isOwner: boolean, token: string | null)
     logsByYear[currentYear] = [];
   }
 
+  const onNameChange: Action<State, Event> = (state, event) => {
+    const target = event.target as HTMLInputElement;
+    const newName = target.value.trim();
+    if (newName && newName !== habit.name && token) {
+      return [state, [UpdateHabitNameFx, { habitId: habit.id, name: newName, token }]];
+    }
+    target.value = habit.name; // Revert if invalid or unchanged
+    return state;
+  };
+
   return h("div", { class: "bg-neutral-900 py-8 rounded-4xl flex flex-col gap-8 overflow-hidden w-full", key: habit.id }, [
     h("div", { class: "flex justify-between items-center px-8" }, [
-      h("h3", { class: "text-xl font-bold" }, text(habit.name)),
-      isOwner && token
+      isEditing && isOwner
+        ? h("input", {
+          class: "text-xl font-bold bg-transparent border-b border-neutral-700 focus:outline-none w-full mr-4",
+          value: habit.name,
+          onblur: onNameChange,
+          onkeydown: (state: State, event: KeyboardEvent) => {
+            if (event.key === "Enter") (event.target as HTMLInputElement).blur();
+            return state;
+          },
+        })
+        : h("h3", { class: "text-xl font-bold" }, text(habit.name)),
+      isOwner && !isEditing && token
         ? Button({
           disabled: wasLoggedToday,
           onclick: (state: State) => [state, [LogHabitFx, { habitId: habit.id, token: state.token! }]],
@@ -89,7 +116,7 @@ const HabitCard = (habit: HabitWithLogs, isOwner: boolean, token: string | null)
             key: String(year),
             class: "flex flex-col items-center gap-2 flex-shrink-0 px-8"
           }, [
-            YearTable({ year, logs: logsByYear[year] || [] }),
+            YearTable({ year, logs: logsByYear[year] || [], isEditing, habitId: habit.id, token }),
           ])
         )
       ),
@@ -176,19 +203,27 @@ export const ProfileView = (state: State): VNode<State> => {
 
   const { user, habits, isOwner } = state.profileData;
 
-  return h("div", { class: "flex flex-col gap-12 w-full" }, [
+  return h("div", { class: "flex flex-col gap-8 w-full" }, [
     h("header", { class: "flex justify-between items-center" }, [
       h("h1", { class: "text-3xl font-bold" }, text("@" + user.username)),
     ]),
 
-    h("div", { class: "flex flex-col gap-8" }, [
-      ...habits.map(habit => HabitCard(habit, isOwner, state.token)),
+    h("div", { class: "flex flex-col gap-4" }, [
+      h("div", { class: "flex justify-between items-center" }, [
+        h("h2", { class: "text-2xl font-bold" }, text("Habits")),
+        isOwner && Button({
+          onclick: ToggleEditMode
+        }, text(state.isEditing ? "Done" : "Edit"))
+      ]),
+      h("div", { class: "flex flex-col gap-8" }, [
+        ...habits.map(habit => HabitCard(habit, isOwner, state.token, state.isEditing)),
 
-      isOwner ? AddHabitCard(state) : null,
+        isOwner && !state.isEditing ? AddHabitCard(state) : null,
 
-      habits.length === 0 && !isOwner
-        ? h("p", { class: "text-neutral-400" }, text("This user hasn't added any habits yet."))
-        : null
+        habits.length === 0 && !isOwner
+          ? h("p", { class: "text-neutral-400" }, text("This user hasn't added any habits yet."))
+          : null
+      ])
     ])
   ]);
 };
