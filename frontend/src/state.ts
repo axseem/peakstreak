@@ -16,6 +16,7 @@ export const initialState: State = {
   error: null,
   newHabitName: "",
   isAddingHabit: false,
+  isProfileMenuOpen: false,
 };
 
 // --- Actions (Synchronous State Updaters) ---
@@ -98,7 +99,7 @@ export const AddHabitLog = (state: State, { habitId, log }: { habitId: string, l
 export const Logout = (_state: State): [State, any] => {
   localStorage.removeItem("peakstreak_user");
   localStorage.removeItem("peakstreak_token");
-  const newState: State = { ...initialState, view: "login", user: null, token: null, profileData: null };
+  const newState: State = { ...initialState, view: "login", user: null, token: null, profileData: null, isProfileMenuOpen: false };
   return [newState, [NavigateFx, { path: "/login", replace: true }]];
 };
 
@@ -112,6 +113,17 @@ export const HideAddHabitForm = (state: State): State => ({
   isAddingHabit: false,
   newHabitName: "",
 });
+
+export const ToggleProfileMenu = (state: State): State => ({
+  ...state,
+  isProfileMenuOpen: !state.isProfileMenuOpen,
+});
+
+export const CloseProfileMenu = (state: State): State => ({
+  ...state,
+  isProfileMenuOpen: false,
+});
+
 
 // --- Effects (Asynchronous Side-Effects) ---
 
