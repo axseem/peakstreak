@@ -26,6 +26,9 @@ export type ProfileData = {
   user: User;
   habits: HabitWithLogs[];
   isOwner: boolean;
+  followersCount: number;
+  followingCount: number;
+  isFollowing: boolean;
 };
 
 export type State = {

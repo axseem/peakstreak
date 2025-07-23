@@ -140,6 +140,7 @@ func (h *APIHandler) GetProfilePageData(w http.ResponseWriter, r *http.Request) 
 			errorResponse(w, http.StatusNotFound, "User not found")
 			return
 		}
+		slog.Error("could not retrieve user profile", "error", err)
 		errorResponse(w, http.StatusInternalServerError, "Could not retrieve user profile")
 		return
 	}
@@ -287,4 +288,62 @@ func (h *APIHandler) LogHabit(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, log)
+}
+
+func (h *APIHandler) FollowUser(w http.ResponseWriter, r *http.Request) {
+	usernameToFollow := chi.URLParam(r, "username")
+
+	followerID, ok := getUserIDFromContext(r.Context())
+	if !ok {
+		errorResponse(w, http.StatusUnauthorized, "Authentication error")
+		return
+	}
+
+	userToFollow, err := h.service.GetUserByUsername(r.Context(), usernameToFollow)
+	if err != nil {
+		if errors.Is(err, repository.ErrUserNotFound) {
+			errorResponse(w, http.StatusNotFound, "User to follow not found")
+			return
+		}
+		errorResponse(w, http.StatusInternalServerError, "Unexpected internal server error")
+		return
+	}
+
+	if err := h.service.FollowUser(r.Context(), followerID, userToFollow.ID); err != nil {
+		if errors.Is(err, service.ErrCannotFollowSelf) {
+			errorResponse(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		errorResponse(w, http.StatusInternalServerError, "Failed to follow user")
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *APIHandler) UnfollowUser(w http.ResponseWriter, r *http.Request) {
+	usernameToUnfollow := chi.URLParam(r, "username")
+
+	followerID, ok := getUserIDFromContext(r.Context())
+	if !ok {
+		errorResponse(w, http.StatusUnauthorized, "Authentication error")
+		return
+	}
+
+	userToUnfollow, err := h.service.GetUserByUsername(r.Context(), usernameToUnfollow)
+	if err != nil {
+		if errors.Is(err, repository.ErrUserNotFound) {
+			errorResponse(w, http.StatusNotFound, "User to unfollow not found")
+			return
+		}
+		errorResponse(w, http.StatusInternalServerError, "Unexpected internal server error")
+		return
+	}
+
+	if err := h.service.UnfollowUser(r.Context(), followerID, userToUnfollow.ID); err != nil {
+		errorResponse(w, http.StatusInternalServerError, "Failed to unfollow user")
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
 }

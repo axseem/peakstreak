@@ -23,5 +23,14 @@ CREATE TABLE IF NOT EXISTS habit_logs (
     UNIQUE (habit_id, log_date)
 );
 
+CREATE TABLE IF NOT EXISTS followers (
+    follower_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    following_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (follower_id, following_id)
+);
+
 CREATE INDEX idx_habits_user_id ON habits (user_id);
 CREATE INDEX idx_habit_logs_habit_id ON habit_logs (habit_id);
+CREATE INDEX idx_followers_follower_id ON followers (follower_id);
+CREATE INDEX idx_followers_following_id ON followers (following_id);

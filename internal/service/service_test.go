@@ -106,6 +106,31 @@ func (m *MockRepository) GetUsers(ctx context.Context) ([]domain.User, error) {
 	return args.Get(0).([]domain.User), args.Error(1)
 }
 
+func (m *MockRepository) FollowUser(ctx context.Context, followerID, followingID uuid.UUID) error {
+	args := m.Called(ctx, followerID, followingID)
+	return args.Error(0)
+}
+
+func (m *MockRepository) UnfollowUser(ctx context.Context, followerID, followingID uuid.UUID) error {
+	args := m.Called(ctx, followerID, followingID)
+	return args.Error(0)
+}
+
+func (m *MockRepository) IsFollowing(ctx context.Context, followerID, followingID uuid.UUID) (bool, error) {
+	args := m.Called(ctx, followerID, followingID)
+	return args.Bool(0), args.Error(1)
+}
+
+func (m *MockRepository) GetFollowerCount(ctx context.Context, userID uuid.UUID) (int, error) {
+	args := m.Called(ctx, userID)
+	return args.Int(0), args.Error(1)
+}
+
+func (m *MockRepository) GetFollowingCount(ctx context.Context, userID uuid.UUID) (int, error) {
+	args := m.Called(ctx, userID)
+	return args.Int(0), args.Error(1)
+}
+
 func TestCreateUser_Success(t *testing.T) {
 	mockRepo := new(MockRepository)
 	s := New(mockRepo)
@@ -292,6 +317,8 @@ func TestGetProfileData_Owner_Success(t *testing.T) {
 	mockRepo.On("GetUserByUsername", ctx, "testuser").Return(testUser, nil)
 	mockRepo.On("GetHabitsByUserID", ctx, testUser.ID).Return(testHabits, nil)
 	mockRepo.On("GetLogsForHabits", ctx, []uuid.UUID{habit1ID}).Return(testLogs, nil)
+	mockRepo.On("GetFollowerCount", ctx, testUser.ID).Return(10, nil)
+	mockRepo.On("GetFollowingCount", ctx, testUser.ID).Return(5, nil)
 
 	profileData, err := s.GetProfileData(ctx, "testuser", testUser.ID)
 
@@ -302,7 +329,12 @@ func TestGetProfileData_Owner_Success(t *testing.T) {
 	assert.Empty(t, profileData.User.HashedPassword, "Hashed password should be cleared")
 	assert.Len(t, profileData.Habits, 1)
 	assert.Len(t, profileData.Habits[0].Logs, 1, "Logs should be included for the owner")
+	assert.Equal(t, 10, profileData.FollowersCount)
+	assert.Equal(t, 5, profileData.FollowingCount)
+	assert.False(t, profileData.IsFollowing, "Owner should not be 'following' themselves")
+
 	mockRepo.AssertExpectations(t)
+	mockRepo.AssertNotCalled(t, "IsFollowing", ctx, mock.Anything, mock.Anything)
 }
 
 func TestGetProfileData_NotOwner_Success(t *testing.T) {
@@ -323,6 +355,9 @@ func TestGetProfileData_NotOwner_Success(t *testing.T) {
 	mockRepo.On("GetUserByUsername", ctx, "testuser").Return(testUser, nil)
 	mockRepo.On("GetHabitsByUserID", ctx, testUser.ID).Return(testHabits, nil)
 	mockRepo.On("GetLogsForHabits", ctx, []uuid.UUID{habit1ID}).Return(testLogs, nil)
+	mockRepo.On("GetFollowerCount", ctx, testUser.ID).Return(25, nil)
+	mockRepo.On("GetFollowingCount", ctx, testUser.ID).Return(15, nil)
+	mockRepo.On("IsFollowing", ctx, visitorID, testUser.ID).Return(true, nil)
 
 	profileData, err := s.GetProfileData(ctx, "testuser", visitorID)
 
@@ -332,6 +367,10 @@ func TestGetProfileData_NotOwner_Success(t *testing.T) {
 	assert.Equal(t, "testuser", profileData.User.Username)
 	assert.Len(t, profileData.Habits, 1)
 	assert.Len(t, profileData.Habits[0].Logs, 1, "Logs should be included for a visitor")
+	assert.Equal(t, 25, profileData.FollowersCount)
+	assert.Equal(t, 15, profileData.FollowingCount)
+	assert.True(t, profileData.IsFollowing)
+
 	mockRepo.AssertExpectations(t)
 }
 
@@ -405,4 +444,73 @@ func TestGetAllHabitsWithLogs_NoHabits(t *testing.T) {
 
 	mockRepo.AssertExpectations(t)
 	mockRepo.AssertNotCalled(t, "GetLogsForHabits", ctx, mock.Anything)
+}
+
+func TestFollowUser_Success(t *testing.T) {
+	mockRepo := new(MockRepository)
+	s := New(mockRepo)
+	ctx := context.Background()
+
+	followerID := uuid.New()
+	userToFollowID := uuid.New()
+
+	mockRepo.On("FollowUser", ctx, followerID, userToFollowID).Return(nil)
+
+	err := s.FollowUser(ctx, followerID, userToFollowID)
+
+	assert.NoError(t, err)
+	mockRepo.AssertExpectations(t)
+}
+
+func TestFollowUser_CannotFollowSelf(t *testing.T) {
+	mockRepo := new(MockRepository)
+	s := New(mockRepo)
+	ctx := context.Background()
+
+	userID := uuid.New()
+
+	err := s.FollowUser(ctx, userID, userID)
+
+	assert.Error(t, err)
+	assert.True(t, errors.Is(err, ErrCannotFollowSelf))
+	mockRepo.AssertNotCalled(t, "FollowUser", ctx, mock.Anything, mock.Anything)
+}
+
+func TestUnfollowUser_Success(t *testing.T) {
+	mockRepo := new(MockRepository)
+	s := New(mockRepo)
+	ctx := context.Background()
+
+	followerID := uuid.New()
+	userToUnfollowID := uuid.New()
+
+	mockRepo.On("UnfollowUser", ctx, followerID, userToUnfollowID).Return(nil)
+
+	err := s.UnfollowUser(ctx, followerID, userToUnfollowID)
+
+	assert.NoError(t, err)
+	mockRepo.AssertExpectations(t)
+}
+
+func TestGetUserByUsername_Success(t *testing.T) {
+	mockRepo := new(MockRepository)
+	s := New(mockRepo)
+	ctx := context.Background()
+
+	testUser := &domain.User{
+		ID:             uuid.New(),
+		Username:       "testuser",
+		Email:          "test@example.com",
+		HashedPassword: "a_very_secret_hash",
+	}
+
+	mockRepo.On("GetUserByUsername", ctx, "testuser").Return(testUser, nil)
+
+	user, err := s.GetUserByUsername(ctx, "testuser")
+
+	assert.NoError(t, err)
+	assert.NotNil(t, user)
+	assert.Equal(t, "testuser", user.Username)
+	assert.Empty(t, user.HashedPassword, "Hashed password should be cleared from response")
+	mockRepo.AssertExpectations(t)
 }

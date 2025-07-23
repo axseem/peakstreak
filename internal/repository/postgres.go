@@ -193,3 +193,39 @@ func (r *PostgresRepository) GetLogsForHabits(ctx context.Context, habitIDs []uu
 	}
 	return logs, nil
 }
+
+func (r *PostgresRepository) FollowUser(ctx context.Context, followerID, followingID uuid.UUID) error {
+	query := `INSERT INTO followers (follower_id, following_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`
+	_, err := r.db.Exec(ctx, query, followerID, followingID)
+	return err
+}
+
+func (r *PostgresRepository) UnfollowUser(ctx context.Context, followerID, followingID uuid.UUID) error {
+	query := `DELETE FROM followers WHERE follower_id = $1 AND following_id = $2`
+	_, err := r.db.Exec(ctx, query, followerID, followingID)
+	return err
+}
+
+func (r *PostgresRepository) IsFollowing(ctx context.Context, followerID, followingID uuid.UUID) (bool, error) {
+	if followerID == uuid.Nil {
+		return false, nil
+	}
+	query := `SELECT EXISTS(SELECT 1 FROM followers WHERE follower_id = $1 AND following_id = $2)`
+	var isFollowing bool
+	err := r.db.QueryRow(ctx, query, followerID, followingID).Scan(&isFollowing)
+	return isFollowing, err
+}
+
+func (r *PostgresRepository) GetFollowerCount(ctx context.Context, userID uuid.UUID) (int, error) {
+	query := `SELECT COUNT(*) FROM followers WHERE following_id = $1`
+	var count int
+	err := r.db.QueryRow(ctx, query, userID).Scan(&count)
+	return count, err
+}
+
+func (r *PostgresRepository) GetFollowingCount(ctx context.Context, userID uuid.UUID) (int, error) {
+	query := `SELECT COUNT(*) FROM followers WHERE follower_id = $1`
+	var count int
+	err := r.db.QueryRow(ctx, query, userID).Scan(&count)
+	return count, err
+}

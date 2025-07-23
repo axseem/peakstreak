@@ -46,7 +46,16 @@ type HabitRepository interface {
 	GetLogsForHabits(ctx context.Context, habitIDs []uuid.UUID) ([]domain.HabitLog, error)
 }
 
+type FollowerRepository interface {
+	FollowUser(ctx context.Context, followerID, followingID uuid.UUID) error
+	UnfollowUser(ctx context.Context, followerID, followingID uuid.UUID) error
+	IsFollowing(ctx context.Context, followerID, followingID uuid.UUID) (bool, error)
+	GetFollowerCount(ctx context.Context, userID uuid.UUID) (int, error)
+	GetFollowingCount(ctx context.Context, userID uuid.UUID) (int, error)
+}
+
 type AllInOneRepository interface {
 	UserRepository
 	HabitRepository
+	FollowerRepository
 }

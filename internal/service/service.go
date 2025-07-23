@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/axseem/peakstreak/internal/domain"
@@ -15,6 +16,7 @@ import (
 var (
 	ErrInvalidCredentials = errors.New("invalid credentials")
 	ErrUserAccessDenied   = errors.New("user does not have permission to access this resource")
+	ErrCannotFollowSelf   = errors.New("cannot follow yourself")
 )
 
 type Service struct {
@@ -83,10 +85,22 @@ func (s *Service) GetUsers(ctx context.Context) ([]domain.User, error) {
 	return users, nil
 }
 
+func (s *Service) GetUserByUsername(ctx context.Context, username string) (*domain.User, error) {
+	user, err := s.repo.GetUserByUsername(ctx, username)
+	if err != nil {
+		return nil, err
+	}
+	user.HashedPassword = ""
+	return user, nil
+}
+
 type ProfileData struct {
-	User    *domain.User           `json:"user"`
-	Habits  []domain.HabitWithLogs `json:"habits"`
-	IsOwner bool                   `json:"isOwner"`
+	User           *domain.User           `json:"user"`
+	Habits         []domain.HabitWithLogs `json:"habits"`
+	IsOwner        bool                   `json:"isOwner"`
+	FollowersCount int                    `json:"followersCount"`
+	FollowingCount int                    `json:"followingCount"`
+	IsFollowing    bool                   `json:"isFollowing"`
 }
 
 func (s *Service) GetProfileData(ctx context.Context, username string, authenticatedUserID uuid.UUID) (*ProfileData, error) {
@@ -98,15 +112,58 @@ func (s *Service) GetProfileData(ctx context.Context, username string, authentic
 
 	isOwner := user.ID == authenticatedUserID
 
-	habitsWithLogs, err := s.GetAllHabitsWithLogs(ctx, user.ID)
-	if err != nil {
-		return nil, err
+	var habitsWithLogs []domain.HabitWithLogs
+	var followersCount, followingCount int
+	var isFollowing bool
+	var wg sync.WaitGroup
+	var errHabits, errFollowers, errFollowing, errIsFollowing error
+
+	wg.Add(4)
+
+	go func() {
+		defer wg.Done()
+		habitsWithLogs, errHabits = s.GetAllHabitsWithLogs(ctx, user.ID)
+	}()
+
+	go func() {
+		defer wg.Done()
+		followersCount, errFollowers = s.repo.GetFollowerCount(ctx, user.ID)
+	}()
+
+	go func() {
+		defer wg.Done()
+		followingCount, errFollowing = s.repo.GetFollowingCount(ctx, user.ID)
+	}()
+
+	go func() {
+		defer wg.Done()
+		if !isOwner {
+			isFollowing, errIsFollowing = s.repo.IsFollowing(ctx, authenticatedUserID, user.ID)
+		}
+	}()
+
+	wg.Wait()
+
+	if errHabits != nil {
+		return nil, fmt.Errorf("failed to get habits: %w", errHabits)
+	}
+	if errFollowers != nil {
+		return nil, fmt.Errorf("failed to get followers count: %w", errFollowers)
+	}
+	if errFollowing != nil {
+		return nil, fmt.Errorf("failed to get following count: %w", errFollowing)
+	}
+	if errIsFollowing != nil {
+		return nil, fmt.Errorf("failed to check following status: %w", errIsFollowing)
 	}
 
 	return &ProfileData{
-		User:    user,
-		Habits:  habitsWithLogs,
-		IsOwner: isOwner,
+		User:           user,
+		Habits:         habitsWithLogs,
+		IsOwner:        isOwner,
+		FollowersCount: followersCount,
+		FollowingCount: followingCount,
+		IsFollowing:    isFollowing,
 	}, nil
 }
 
@@ -243,4 +300,15 @@ func (s *Service) LogHabit(ctx context.Context, params LogHabitParams, userID uu
 	}
 
 	return log, nil
+}
+
+func (s *Service) FollowUser(ctx context.Context, followerID, userToFollowID uuid.UUID) error {
+	if followerID == userToFollowID {
+		return ErrCannotFollowSelf
+	}
+	return s.repo.FollowUser(ctx, followerID, userToFollowID)
+}
+
+func (s *Service) UnfollowUser(ctx context.Context, followerID, userToUnfollowID uuid.UUID) error {
+	return s.repo.UnfollowUser(ctx, followerID, userToUnfollowID)
 }

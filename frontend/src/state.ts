@@ -163,6 +163,19 @@ export const ToggleEditMode = (state: State): State => ({
   isEditing: !state.isEditing,
 });
 
+export const SetFollowingStatus = (state: State, { isFollowing }: { isFollowing: boolean }): State => {
+  if (!state.profileData) return state;
+  const currentFollowers = state.profileData.followersCount;
+  return {
+    ...state,
+    isLoading: false,
+    profileData: {
+      ...state.profileData,
+      isFollowing,
+      followersCount: isFollowing ? currentFollowers + 1 : currentFollowers - 1,
+    }
+  };
+};
 
 // --- Effects (Asynchronous Side-Effects) ---
 
@@ -220,6 +233,20 @@ export const ToggleHabitLogFx = (dispatch: any, { habitId, date, currentStatus, 
   const newStatus = !currentStatus;
   api.post(`/api/habit/${habitId}/log`, { date, status: newStatus }, token)
     .then((newLog) => dispatch(UpdateHabitLog, { habitId, log: newLog }))
+    .catch(err => dispatch(SetError, err.message));
+};
+
+export const FollowUserFx = (dispatch: any, { username, token }: { username: string, token: string }) => {
+  dispatch(SetLoading, true);
+  api.post(`/api/profile/${username}/follow`, null, token)
+    .then(() => dispatch(SetFollowingStatus, { isFollowing: true }))
+    .catch(err => dispatch(SetError, err.message));
+};
+
+export const UnfollowUserFx = (dispatch: any, { username, token }: { username: string, token: string }) => {
+  dispatch(SetLoading, true);
+  api.delete(`/api/profile/${username}/follow`, token)
+    .then(() => dispatch(SetFollowingStatus, { isFollowing: false }))
     .catch(err => dispatch(SetError, err.message));
 };
 

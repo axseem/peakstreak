@@ -1,6 +1,17 @@
 import { h, text, type VNode, type Action } from "hyperapp";
 import type { State, HabitWithLogs, HabitLog } from "../types";
-import { HandleFormInput, CreateHabitFx, LogHabitFx, ShowAddHabitForm, HideAddHabitForm, ToggleEditMode, UpdateHabitNameFx, ToggleHabitLogFx } from "../state";
+import {
+  HandleFormInput,
+  CreateHabitFx,
+  LogHabitFx,
+  ShowAddHabitForm,
+  HideAddHabitForm,
+  ToggleEditMode,
+  UpdateHabitNameFx,
+  ToggleHabitLogFx,
+  FollowUserFx,
+  UnfollowUserFx
+} from "../state";
 import { toYYYYMMDD, getDatesForYear, groupLogsByYear } from "../lib/date";
 import { Input } from "../components/Input";
 import { Button } from "../components/Button";
@@ -201,19 +212,40 @@ export const ProfileView = (state: State): VNode<State> => {
     return h("p", { class: "text-red-400" }, text(state.error || "Profile could not be loaded."));
   }
 
-  const { user, habits, isOwner } = state.profileData;
+  const { user, habits, isOwner, followersCount, followingCount, isFollowing } = state.profileData;
+
+  const FollowButton = () => Button({
+    onclick: (s: State) => {
+      if (s.isLoading || !s.token || !s.profileData) return s;
+      const fx = s.profileData.isFollowing ? UnfollowUserFx : FollowUserFx;
+      return [s, [fx, { username: s.profileData.user.username, token: s.token }]];
+    },
+    class: isFollowing ? "bg-neutral-700 enabled:hover:bg-neutral-800 text-neutral-300" : "",
+    disabled: state.isLoading,
+  }, text(isFollowing ? "Following" : "Follow"));
+
+  const EditButton = () => Button({
+    onclick: ToggleEditMode
+  }, text(state.isEditing ? "Done" : "Edit"));
+
 
   return h("div", { class: "flex flex-col gap-8 w-full" }, [
-    h("header", { class: "flex justify-between items-center" }, [
-      h("h1", { class: "text-3xl font-bold" }, text("@" + user.username)),
+    h("header", { class: "flex justify-between items-start" }, [
+      h("div", { class: "flex flex-col gap-2" }, [
+        h("h1", { class: "text-3xl font-bold" }, text("@" + user.username)),
+        h("div", { class: "flex gap-4 text-neutral-400" }, [
+          h("span", {}, text(`${followersCount} Followers`)),
+          h("span", {}, text(`${followingCount} Following`)),
+        ]),
+      ]),
+      isOwner
+        ? (habits.length > 0 && EditButton())
+        : FollowButton()
     ]),
 
     h("div", { class: "flex flex-col gap-4" }, [
       h("div", { class: "flex justify-between items-center" }, [
         h("h2", { class: "text-2xl font-bold" }, text("Habits")),
-        isOwner && Button({
-          onclick: ToggleEditMode
-        }, text(state.isEditing ? "Done" : "Edit"))
       ]),
       h("div", { class: "flex flex-col gap-8" }, [
         ...habits.map(habit => HabitCard(habit, isOwner, state.token, state.isEditing)),
