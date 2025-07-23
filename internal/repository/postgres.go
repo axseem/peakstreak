@@ -229,3 +229,41 @@ func (r *PostgresRepository) GetFollowingCount(ctx context.Context, userID uuid.
 	err := r.db.QueryRow(ctx, query, userID).Scan(&count)
 	return count, err
 }
+
+func (r *PostgresRepository) GetFollowers(ctx context.Context, userID uuid.UUID) ([]domain.PublicUser, error) {
+	query := `
+		SELECT u.id, u.username
+		FROM users u
+		JOIN followers f ON u.id = f.follower_id
+		WHERE f.following_id = $1
+		ORDER BY f.created_at DESC`
+	rows, err := r.db.Query(ctx, query, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	users, err := pgx.CollectRows(rows, pgx.RowToStructByName[domain.PublicUser])
+	if err != nil {
+		return nil, err
+	}
+	return users, nil
+}
+
+func (r *PostgresRepository) GetFollowing(ctx context.Context, userID uuid.UUID) ([]domain.PublicUser, error) {
+	query := `
+		SELECT u.id, u.username
+		FROM users u
+		JOIN followers f ON u.id = f.following_id
+		WHERE f.follower_id = $1
+		ORDER BY f.created_at DESC`
+	rows, err := r.db.Query(ctx, query, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	users, err := pgx.CollectRows(rows, pgx.RowToStructByName[domain.PublicUser])
+	if err != nil {
+		return nil, err
+	}
+	return users, nil
+}

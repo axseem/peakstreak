@@ -1,5 +1,5 @@
 import { api } from "./api";
-import type { State, User, HabitWithLogs, HabitLog, ProfileData } from "./types";
+import type { State, User, HabitWithLogs, HabitLog, ProfileData, PublicUser } from "./types";
 import { path_to_view, NavigateFx } from "./router";
 import { toYYYYMMDD } from "./lib/date";
 
@@ -19,6 +19,14 @@ export const initialState: State = {
   isAddingHabit: false,
   isProfileMenuOpen: false,
   isEditing: false,
+  followerList: {
+    isOpen: false,
+    type: null,
+    users: [],
+    isLoading: false,
+    error: null,
+    title: ''
+  }
 };
 
 // --- Actions (Synchronous State Updaters) ---
@@ -177,6 +185,51 @@ export const SetFollowingStatus = (state: State, { isFollowing }: { isFollowing:
   };
 };
 
+export const OpenFollowerList = (state: State, { type, username }: { type: 'followers' | 'following', username: string }): [State, any] => {
+  const title = type === 'followers' ? 'Followers' : 'Following';
+  const effect = type === 'followers' ? FetchFollowersFx : FetchFollowingFx;
+  const newState = {
+    ...state,
+    followerList: {
+      isOpen: true,
+      type,
+      title,
+      isLoading: true,
+      error: null,
+      users: [],
+    }
+  };
+  return [newState, [effect, { username, token: state.token }]];
+};
+
+export const CloseFollowerList = (state: State): State => ({
+  ...state,
+  followerList: {
+    ...state.followerList,
+    isOpen: false,
+  }
+});
+
+export const SetFollowerListData = (state: State, { users }: { users: PublicUser[] }): State => ({
+  ...state,
+  followerList: {
+    ...state.followerList,
+    users,
+    isLoading: false,
+    error: null,
+  }
+});
+
+export const SetFollowerListError = (state: State, error: string): State => ({
+  ...state,
+  followerList: {
+    ...state.followerList,
+    isLoading: false,
+    error,
+  }
+});
+
+
 // --- Effects (Asynchronous Side-Effects) ---
 
 export const FetchProfileFx = (dispatch: any, { username, token }: { username: string, token: string | null }) => {
@@ -250,7 +303,19 @@ export const UnfollowUserFx = (dispatch: any, { username, token }: { username: s
     .catch(err => dispatch(SetError, err.message));
 };
 
+export const FetchFollowersFx = (dispatch: any, { username, token }: { username: string, token: string | null }) => {
+  api.get(`/api/profile/${username}/followers`, token)
+    .then(users => dispatch(SetFollowerListData, { users }))
+    .catch(err => dispatch(SetFollowerListError, err.message));
+};
+
+export const FetchFollowingFx = (dispatch: any, { username, token }: { username: string, token: string | null }) => {
+  api.get(`/api/profile/${username}/following`, token)
+    .then(users => dispatch(SetFollowerListData, { users }))
+    .catch(err => dispatch(SetFollowerListError, err.message));
+};
+
 export const initFx = (dispatch: any, _state: State) => {
   const { view, username } = path_to_view(window.location.pathname);
   dispatch(SetView, { view, username });
-};
+};;

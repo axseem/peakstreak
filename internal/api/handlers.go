@@ -347,3 +347,33 @@ func (h *APIHandler) UnfollowUser(w http.ResponseWriter, r *http.Request) {
 
 	w.WriteHeader(http.StatusNoContent)
 }
+
+func (h *APIHandler) GetFollowers(w http.ResponseWriter, r *http.Request) {
+	username := chi.URLParam(r, "username")
+	users, err := h.service.GetFollowers(r.Context(), username)
+	if err != nil {
+		if errors.Is(err, repository.ErrUserNotFound) {
+			errorResponse(w, http.StatusNotFound, "User not found")
+			return
+		}
+		slog.Error("could not retrieve followers", "error", err)
+		errorResponse(w, http.StatusInternalServerError, "Unexpected internal server error")
+		return
+	}
+	writeJSON(w, http.StatusOK, users)
+}
+
+func (h *APIHandler) GetFollowing(w http.ResponseWriter, r *http.Request) {
+	username := chi.URLParam(r, "username")
+	users, err := h.service.GetFollowing(r.Context(), username)
+	if err != nil {
+		if errors.Is(err, repository.ErrUserNotFound) {
+			errorResponse(w, http.StatusNotFound, "User not found")
+			return
+		}
+		slog.Error("could not retrieve following list", "error", err)
+		errorResponse(w, http.StatusInternalServerError, "Unexpected internal server error")
+		return
+	}
+	writeJSON(w, http.StatusOK, users)
+}

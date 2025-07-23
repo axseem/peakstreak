@@ -312,3 +312,19 @@ func (s *Service) FollowUser(ctx context.Context, followerID, userToFollowID uui
 func (s *Service) UnfollowUser(ctx context.Context, followerID, userToUnfollowID uuid.UUID) error {
 	return s.repo.UnfollowUser(ctx, followerID, userToUnfollowID)
 }
+
+func (s *Service) GetFollowers(ctx context.Context, username string) ([]domain.PublicUser, error) {
+	user, err := s.repo.GetUserByUsername(ctx, username)
+	if err != nil {
+		return nil, err
+	}
+	return s.repo.GetFollowers(ctx, user.ID)
+}
+
+func (s *Service) GetFollowing(ctx context.Context, username string) ([]domain.PublicUser, error) {
+	user, err := s.repo.GetUserByUsername(ctx, username)
+	if err != nil {
+		return nil, err
+	}
+	return s.repo.GetFollowing(ctx, user.ID)
+}

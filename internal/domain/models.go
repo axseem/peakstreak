@@ -14,6 +14,11 @@ type User struct {
 	CreatedAt      time.Time `json:"createdAt"`
 }
 
+type PublicUser struct {
+	ID       uuid.UUID `json:"id"`
+	Username string    `json:"username"`
+}
+
 type Habit struct {
 	ID        uuid.UUID `json:"id"`
 	UserID    uuid.UUID `json:"userId"`

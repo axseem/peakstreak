@@ -52,6 +52,8 @@ type FollowerRepository interface {
 	IsFollowing(ctx context.Context, followerID, followingID uuid.UUID) (bool, error)
 	GetFollowerCount(ctx context.Context, userID uuid.UUID) (int, error)
 	GetFollowingCount(ctx context.Context, userID uuid.UUID) (int, error)
+	GetFollowers(ctx context.Context, userID uuid.UUID) ([]domain.PublicUser, error)
+	GetFollowing(ctx context.Context, userID uuid.UUID) ([]domain.PublicUser, error)
 }
 
 type AllInOneRepository interface {

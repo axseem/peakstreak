@@ -4,6 +4,11 @@ export type User = {
   email: string;
 };
 
+export type PublicUser = {
+  id: string;
+  username: string;
+};
+
 export type Habit = {
   id: string;
   userId: string;
@@ -31,6 +36,15 @@ export type ProfileData = {
   isFollowing: boolean;
 };
 
+export type FollowerListState = {
+  isOpen: boolean;
+  type: 'followers' | 'following' | null;
+  users: PublicUser[];
+  isLoading: boolean;
+  error: string | null;
+  title: string;
+};
+
 export type State = {
   view: "login" | "signup" | "profile" | "leaderboard" | "explore" | "not_found" | "home";
   user: User | null;
@@ -42,4 +56,5 @@ export type State = {
   isAddingHabit: boolean;
   isProfileMenuOpen: boolean;
   isEditing: boolean;
+  followerList: FollowerListState;
 };

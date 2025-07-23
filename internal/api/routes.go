@@ -25,6 +25,8 @@ func NewRouter(handler *APIHandler) http.Handler {
 			writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 		})
 		r.Get("/profile/{username}", handler.GetProfilePageData)
+		r.Get("/profile/{username}/followers", handler.GetFollowers)
+		r.Get("/profile/{username}/following", handler.GetFollowing)
 
 		r.Route("/auth", func(r chi.Router) {
 			r.Post("/signup", handler.SignUp)

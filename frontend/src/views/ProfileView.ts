@@ -10,11 +10,13 @@ import {
   UpdateHabitNameFx,
   ToggleHabitLogFx,
   FollowUserFx,
-  UnfollowUserFx
+  UnfollowUserFx,
+  OpenFollowerList
 } from "../state";
 import { toYYYYMMDD, getDatesForYear, groupLogsByYear } from "../lib/date";
 import { Input } from "../components/Input";
 import { Button } from "../components/Button";
+import { UserListPopup } from "../components/UserListPopup";
 
 const YearTable = ({ year, logs, isEditing, habitId, token }: { year: number, logs: HabitLog[], isEditing: boolean, habitId: string, token: string | null }): VNode<State> | null => {
   const logsMap = new Map(logs.map(log => [toYYYYMMDD(new Date(log.date)), log.status]));
@@ -234,8 +236,16 @@ export const ProfileView = (state: State): VNode<State> => {
       h("div", { class: "flex flex-col gap-2" }, [
         h("h1", { class: "text-3xl font-bold" }, text("@" + user.username)),
         h("div", { class: "flex gap-4 text-neutral-400" }, [
-          h("span", {}, text(`${followersCount} Followers`)),
-          h("span", {}, text(`${followingCount} Following`)),
+          h("button", {
+            class: "hover:underline disabled:no-underline disabled:cursor-default",
+            disabled: followersCount === 0,
+            onclick: (s: State) => OpenFollowerList(s, { type: 'followers', username: user.username })
+          }, text(`${followersCount} Followers`)),
+          h("button", {
+            class: "hover:underline disabled:no-underline disabled:cursor-default",
+            disabled: followingCount === 0,
+            onclick: (s: State) => OpenFollowerList(s, { type: 'following', username: user.username })
+          }, text(`${followingCount} Following`)),
         ]),
       ]),
       isOwner
@@ -256,6 +266,7 @@ export const ProfileView = (state: State): VNode<State> => {
           ? h("p", { class: "text-neutral-400" }, text("This user hasn't added any habits yet."))
           : null
       ])
-    ])
+    ]),
+    UserListPopup({ followerList: state.followerList })
   ]);
 };

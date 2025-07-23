@@ -131,6 +131,22 @@ func (m *MockRepository) GetFollowingCount(ctx context.Context, userID uuid.UUID
 	return args.Int(0), args.Error(1)
 }
 
+func (m *MockRepository) GetFollowers(ctx context.Context, userID uuid.UUID) ([]domain.PublicUser, error) {
+	args := m.Called(ctx, userID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]domain.PublicUser), args.Error(1)
+}
+
+func (m *MockRepository) GetFollowing(ctx context.Context, userID uuid.UUID) ([]domain.PublicUser, error) {
+	args := m.Called(ctx, userID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]domain.PublicUser), args.Error(1)
+}
+
 func TestCreateUser_Success(t *testing.T) {
 	mockRepo := new(MockRepository)
 	s := New(mockRepo)
@@ -513,4 +529,93 @@ func TestGetUserByUsername_Success(t *testing.T) {
 	assert.Equal(t, "testuser", user.Username)
 	assert.Empty(t, user.HashedPassword, "Hashed password should be cleared from response")
 	mockRepo.AssertExpectations(t)
+}
+
+func TestGetFollowers_Success(t *testing.T) {
+	mockRepo := new(MockRepository)
+	s := New(mockRepo)
+	ctx := context.Background()
+
+	testUser := &domain.User{
+		ID:       uuid.New(),
+		Username: "testuser",
+	}
+
+	followers := []domain.PublicUser{
+		{ID: uuid.New(), Username: "follower1"},
+		{ID: uuid.New(), Username: "follower2"},
+	}
+
+	mockRepo.On("GetUserByUsername", ctx, "testuser").Return(testUser, nil)
+	mockRepo.On("GetFollowers", ctx, testUser.ID).Return(followers, nil)
+
+	result, err := s.GetFollowers(ctx, "testuser")
+
+	assert.NoError(t, err)
+	assert.NotNil(t, result)
+	assert.Len(t, result, 2)
+	assert.Equal(t, "follower1", result[0].Username)
+
+	mockRepo.AssertExpectations(t)
+}
+
+func TestGetFollowers_UserNotFound(t *testing.T) {
+	mockRepo := new(MockRepository)
+	s := New(mockRepo)
+	ctx := context.Background()
+
+	mockRepo.On("GetUserByUsername", ctx, "nonexistent").Return(nil, repository.ErrUserNotFound)
+
+	result, err := s.GetFollowers(ctx, "nonexistent")
+
+	assert.Error(t, err)
+	assert.Nil(t, result)
+	assert.True(t, errors.Is(err, repository.ErrUserNotFound))
+
+	mockRepo.AssertExpectations(t)
+	mockRepo.AssertNotCalled(t, "GetFollowers", ctx, mock.Anything)
+}
+
+func TestGetFollowing_Success(t *testing.T) {
+	mockRepo := new(MockRepository)
+	s := New(mockRepo)
+	ctx := context.Background()
+
+	testUser := &domain.User{
+		ID:       uuid.New(),
+		Username: "testuser",
+	}
+
+	following := []domain.PublicUser{
+		{ID: uuid.New(), Username: "following1"},
+	}
+
+	mockRepo.On("GetUserByUsername", ctx, "testuser").Return(testUser, nil)
+	mockRepo.On("GetFollowing", ctx, testUser.ID).Return(following, nil)
+
+	result, err := s.GetFollowing(ctx, "testuser")
+
+	assert.NoError(t, err)
+	assert.NotNil(t, result)
+	assert.Len(t, result, 1)
+	assert.Equal(t, "following1", result[0].Username)
+
+	mockRepo.AssertExpectations(t)
+}
+
+func TestGetFollowing_UserNotFound(t *testing.T) {
+	mockRepo := new(MockRepository)
+	s := New(mockRepo)
+	ctx := context.Background()
+
+	mockRepo.On("GetUserByUsername", ctx, "nonexistent").Return(nil, repository.ErrUserNotFound)
+
+	result, err := s.GetFollowing(ctx, "nonexistent")
+
+	assert.Error(t, err)
+	assert.Nil(t, result)
+	assert.True(t, errors.Is(err, repository.ErrUserNotFound))
+
+	mockRepo.AssertExpectations(t)
+	mockRepo.AssertNotCalled(t, "GetFollowing", ctx, mock.Anything)
 }
