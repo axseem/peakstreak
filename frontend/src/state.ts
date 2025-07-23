@@ -183,7 +183,10 @@ export const LoginFx = (dispatch: any, { identifier, password }: any) => {
 export const SignUpFx = (dispatch: any, { username, email, password }: any) => {
   dispatch(SetLoading, true);
   api.post("/api/auth/signup", { username, email, password })
-    .then(() => dispatch(NavigateFx, { path: "/login" }))
+    .then(() => {
+      const GoToLogin = (state: State): [State, any] => [state, [NavigateFx, { path: "/login" }]];
+      dispatch(GoToLogin);
+    })
     .catch(err => dispatch(SetError, err.message));
 };
 
