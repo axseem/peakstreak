@@ -26,7 +26,6 @@ const SearchBar = (): VNode<State> =>
       )
     ),
     h("input", {
-      type: "search",
       placeholder: "Search",
       class: "w-full bg-neutral-800 rounded-lg py-2.5 pl-11 pr-4 focus:outline-none placeholder-neutral-500"
     })
