@@ -406,3 +406,16 @@ func (h *APIHandler) UploadAvatar(w http.ResponseWriter, r *http.Request) {
 
 	writeJSON(w, http.StatusOK, map[string]string{"avatarUrl": avatarURL})
 }
+
+func (h *APIHandler) SearchUsers(w http.ResponseWriter, r *http.Request) {
+	query := r.URL.Query().Get("q")
+
+	users, err := h.service.SearchUsers(r.Context(), query)
+	if err != nil {
+		slog.Error("failed to search users", "error", err, "query", query)
+		errorResponse(w, http.StatusInternalServerError, "Failed to search for users")
+		return
+	}
+
+	writeJSON(w, http.StatusOK, users)
+}

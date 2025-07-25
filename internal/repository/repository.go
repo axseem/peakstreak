@@ -36,6 +36,7 @@ type UserRepository interface {
 	GetUserByID(ctx context.Context, id uuid.UUID) (*domain.User, error)
 	GetUserAvatar(ctx context.Context, userID uuid.UUID) (*string, error)
 	UpdateUserAvatar(ctx context.Context, userID uuid.UUID, avatarURL *string) error
+	SearchUsersByUsername(ctx context.Context, query string) ([]domain.PublicUser, error)
 }
 
 type HabitRepository interface {

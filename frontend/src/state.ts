@@ -1,5 +1,5 @@
 import { api } from "./api";
-import type { State, User, HabitWithLogs, HabitLog, ProfileData, PublicUser } from "./types";
+import type { State, User, HabitWithLogs, HabitLog, ProfileData, PublicUser, SearchState } from "./types";
 import { path_to_view, NavigateFx } from "./router";
 import { toYYYYMMDD } from "./lib/date";
 
@@ -26,7 +26,13 @@ export const initialState: State = {
     isLoading: false,
     error: null,
     title: ''
-  }
+  },
+  search: {
+    query: "",
+    results: [],
+    isLoading: false,
+    error: null,
+  },
 };
 
 // --- Actions (Synchronous State Updaters) ---
@@ -42,6 +48,26 @@ export const SetView = (state: State, { view, username }: { view: State["view"],
   const authRequiredViews: State["view"][] = [];
   if (authRequiredViews.includes(view) && !state.token) {
     return [state, [NavigateFx, { path: "/login", replace: true }]];
+  }
+
+  // Handle search view separately to manage its own loading state
+  if (view === "search") {
+    const urlParams = new URLSearchParams(window.location.search);
+    const query = urlParams.get('q') || "";
+    const searchState: SearchState = {
+      query,
+      isLoading: true,
+      error: null,
+      results: []
+    };
+    const newState = { ...state, view, error: null, isEditing: false, search: searchState };
+
+    if (query.length >= 3) {
+      return [newState, [SearchUsersFx, { query }]];
+    }
+
+    // If query is too short, just update state without effect
+    return { ...newState, search: { ...searchState, isLoading: false } };
   }
 
   const newState = { ...state, view, error: null, isLoading: true, isEditing: false };
@@ -240,6 +266,26 @@ export const SetFollowerListError = (state: State, error: string): State => ({
   }
 });
 
+export const SetSearchResults = (state: State, { query, results }: { query: string, results: PublicUser[] }): State => ({
+  ...state,
+  search: {
+    query,
+    results,
+    isLoading: false,
+    error: null,
+  }
+});
+
+export const SetSearchError = (state: State, { query, error }: { query: string, error: string }): State => ({
+  ...state,
+  search: {
+    query,
+    results: [],
+    isLoading: false,
+    error,
+  }
+});
+
 
 // --- Effects (Asynchronous Side-Effects) ---
 
@@ -341,6 +387,12 @@ export const UploadAvatarFx = (dispatch: any, { file, token }: { file: File, tok
   api.upload("/api/user/avatar", formData, token)
     .then(data => dispatch(SetAvatarUrl, { avatarUrl: data.avatarUrl }))
     .catch(err => dispatch(SetError, err.message));
+};
+
+export const SearchUsersFx = (dispatch: any, { query }: { query: string }) => {
+  api.get(`/api/users/search?q=${encodeURIComponent(query)}`, null)
+    .then(results => dispatch(SetSearchResults, { query, results }))
+    .catch(err => dispatch(SetSearchError, { query, error: err.message }));
 };
 
 export const initFx = (dispatch: any, _state: State) => {

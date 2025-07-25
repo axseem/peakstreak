@@ -6,6 +6,7 @@ const staticRoutes: Record<string, State["view"]> = {
   "/signup": "signup",
   "/leaderboard": "leaderboard",
   "/explore": "explore",
+  "/search": "search",
 };
 
 export const path_to_view = (path: string): { view: State["view"], username?: string } => {
@@ -25,7 +26,7 @@ export const path_to_view = (path: string): { view: State["view"], username?: st
 };
 
 export const NavigateFx = (dispatch: any, { path, replace = false }: { path: string, replace?: boolean }) => {
-  const { view, username } = path_to_view(path);
+  const { view, username } = path_to_view(path.split('?')[0]); // Ignore query params for view resolution
   if (replace) {
     history.replaceState({ view, username }, "", path);
   } else {

@@ -83,6 +83,27 @@ func (r *PostgresRepository) GetUsers(ctx context.Context) ([]domain.User, error
 	return users, nil
 }
 
+func (r *PostgresRepository) SearchUsersByUsername(ctx context.Context, query string) ([]domain.PublicUser, error) {
+	sqlQuery := `
+		SELECT id, username, avatar_url
+		FROM users
+		WHERE username ILIKE $1
+		ORDER BY username
+		LIMIT 40`
+
+	rows, err := r.db.Query(ctx, sqlQuery, "%"+query+"%")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	users, err := pgx.CollectRows(rows, pgx.RowToStructByName[domain.PublicUser])
+	if err != nil {
+		return nil, err
+	}
+	return users, nil
+}
+
 func (r *PostgresRepository) GetUserByID(ctx context.Context, id uuid.UUID) (*domain.User, error) {
 	query := `SELECT id, username, email, avatar_url, created_at FROM users WHERE id = $1`
 	var user domain.User

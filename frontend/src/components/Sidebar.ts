@@ -26,8 +26,18 @@ const SearchBar = (): VNode<State> =>
       )
     ),
     h("input", {
-      placeholder: "Search",
-      class: "w-full bg-neutral-800 rounded-lg py-2.5 pl-11 pr-4 focus:outline-none placeholder-neutral-500"
+      placeholder: "Search users...",
+      class: "w-full bg-neutral-800 rounded-lg py-2.5 pl-11 pr-4 focus:outline-none placeholder-neutral-500",
+      onkeydown: (state: State, event: KeyboardEvent) => {
+        if (event.key === 'Enter') {
+          const query = (event.target as HTMLInputElement).value.trim();
+          if (query) {
+            (event.target as HTMLInputElement).blur();
+            return [state, [NavigateFx, { path: `/search?q=${encodeURIComponent(query)}` }]];
+          }
+        }
+        return state;
+      }
     })
   ]);
 

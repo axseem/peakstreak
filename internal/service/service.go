@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -156,6 +157,13 @@ func (s *Service) GetUsers(ctx context.Context) ([]domain.User, error) {
 		return nil, err
 	}
 	return users, nil
+}
+
+func (s *Service) SearchUsers(ctx context.Context, query string) ([]domain.PublicUser, error) {
+	if strings.TrimSpace(query) == "" {
+		return []domain.PublicUser{}, nil
+	}
+	return s.repo.SearchUsersByUsername(ctx, query)
 }
 
 func (s *Service) GetUserByUsername(ctx context.Context, username string) (*domain.User, error) {

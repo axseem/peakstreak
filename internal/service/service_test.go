@@ -123,6 +123,14 @@ func (m *MockRepository) GetUsers(ctx context.Context) ([]domain.User, error) {
 	return args.Get(0).([]domain.User), args.Error(1)
 }
 
+func (m *MockRepository) SearchUsersByUsername(ctx context.Context, query string) ([]domain.PublicUser, error) {
+	args := m.Called(ctx, query)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]domain.PublicUser), args.Error(1)
+}
+
 func (m *MockRepository) FollowUser(ctx context.Context, followerID, followingID uuid.UUID) error {
 	args := m.Called(ctx, followerID, followingID)
 	return args.Error(0)
@@ -803,4 +811,54 @@ func TestUpdateUserAvatar_InvalidMimeType(t *testing.T) {
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "invalid file type")
 	mockRepo.AssertNotCalled(t, "GetUserAvatar")
+}
+
+// --- Search Tests ---
+
+func TestSearchUsers_Success(t *testing.T) {
+	mockRepo := new(MockRepository)
+	s := New(mockRepo)
+	ctx := context.Background()
+
+	query := "test"
+	expectedUsers := []domain.PublicUser{
+		{ID: uuid.New(), Username: "testuser1"},
+		{ID: uuid.New(), Username: "another_test"},
+	}
+
+	mockRepo.On("SearchUsersByUsername", ctx, query).Return(expectedUsers, nil)
+
+	users, err := s.SearchUsers(ctx, query)
+
+	assert.NoError(t, err)
+	assert.Len(t, users, 2)
+	assert.Equal(t, "testuser1", users[0].Username)
+	mockRepo.AssertExpectations(t)
+}
+
+func TestSearchUsers_EmptyQuery(t *testing.T) {
+	mockRepo := new(MockRepository)
+	s := New(mockRepo)
+	ctx := context.Background()
+
+	users, err := s.SearchUsers(ctx, "  ")
+
+	assert.NoError(t, err)
+	assert.Len(t, users, 0)
+	mockRepo.AssertNotCalled(t, "SearchUsersByUsername", ctx, mock.Anything)
+}
+
+func TestSearchUsers_NoResults(t *testing.T) {
+	mockRepo := new(MockRepository)
+	s := New(mockRepo)
+	ctx := context.Background()
+
+	query := "nonexistent"
+	mockRepo.On("SearchUsersByUsername", ctx, query).Return([]domain.PublicUser{}, nil)
+
+	users, err := s.SearchUsers(ctx, query)
+
+	assert.NoError(t, err)
+	assert.Len(t, users, 0)
+	mockRepo.AssertExpectations(t)
 }

@@ -32,6 +32,7 @@ func NewRouter(handler *APIHandler) http.Handler {
 		r.Get("/profile/{username}", handler.GetProfilePageData)
 		r.Get("/profile/{username}/followers", handler.GetFollowers)
 		r.Get("/profile/{username}/following", handler.GetFollowing)
+		r.Get("/users/search", handler.SearchUsers)
 
 		r.Route("/auth", func(r chi.Router) {
 			r.Post("/signup", handler.SignUp)

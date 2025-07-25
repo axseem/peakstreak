@@ -47,8 +47,15 @@ export type FollowerListState = {
   title: string;
 };
 
+export type SearchState = {
+  query: string;
+  results: PublicUser[];
+  isLoading: boolean;
+  error: string | null;
+};
+
 export type State = {
-  view: "login" | "signup" | "profile" | "leaderboard" | "explore" | "not_found" | "home";
+  view: "login" | "signup" | "profile" | "leaderboard" | "explore" | "not_found" | "home" | "search";
   user: User | null;
   token: string | null;
   profileData: ProfileData | null;
@@ -59,4 +66,5 @@ export type State = {
   isProfileMenuOpen: boolean;
   isEditing: boolean;
   followerList: FollowerListState;
+  search: SearchState;
 };

@@ -6,6 +6,7 @@ import { ProfileView } from "./views/ProfileView";
 import { MainLayout } from "./views/MainLayout";
 import { PopStateSub } from "./router";
 import "./index.css";
+import { UserSearchView } from "./views/UserSearchView";
 
 const ComingSoon = (page: string) => h<State>("div", { class: "w-full h-full flex items-center justify-center text-2xl text-neutral-500" }, text(`${page} - Coming Soon!`));
 
@@ -14,6 +15,7 @@ const renderView = (state: State) => {
     case "login": return AuthForm({ isLogin: true })(state);
     case "signup": return AuthForm({ isLogin: false })(state);
     case "profile": return ProfileView(state);
+    case "search": return UserSearchView(state);
     case "leaderboard": return ComingSoon("Leaderboard");
     case "explore": return ComingSoon("Explore");
     case "not_found":
