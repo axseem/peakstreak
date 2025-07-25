@@ -4,6 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
+	"log/slog"
+	"mime/multipart"
+	"net/http"
+	"os"
+	"path/filepath"
 	"sync"
 	"time"
 
@@ -18,6 +24,21 @@ var (
 	ErrUserAccessDenied   = errors.New("user does not have permission to access this resource")
 	ErrCannotFollowSelf   = errors.New("cannot follow yourself")
 )
+
+const (
+	KB = 1024
+	MB = 1024 * KB
+)
+
+const (
+	MAX_AVATAR_SIZE = 2 * MB
+	AVATAR_PATH     = "./uploads/avatars"
+)
+
+var allowedMimeTypes = map[string]bool{
+	"image/jpeg": true,
+	"image/png":  true,
+}
 
 type Service struct {
 	repo repository.AllInOneRepository
@@ -75,6 +96,58 @@ func (s *Service) LoginUser(ctx context.Context, params LoginUserParams) (*domai
 
 	user.HashedPassword = ""
 	return user, nil
+}
+
+func (s *Service) UpdateUserAvatar(ctx context.Context, userID uuid.UUID, file multipart.File, header *multipart.FileHeader) (string, error) {
+	if header.Size > MAX_AVATAR_SIZE {
+		return "", errors.New("file size exceeds the 2MB limit")
+	}
+
+	buff := make([]byte, 512)
+	if _, err := file.Read(buff); err != nil {
+		return "", fmt.Errorf("could not read file for mime type detection: %w", err)
+	}
+	if _, err := file.Seek(0, 0); err != nil {
+		return "", fmt.Errorf("could not reset file read pointer: %w", err)
+	}
+	mimeType := http.DetectContentType(buff)
+	if !allowedMimeTypes[mimeType] {
+		return "", fmt.Errorf("invalid file type: %s. Only jpeg and png are allowed", mimeType)
+	}
+
+	oldAvatarURL, err := s.repo.GetUserAvatar(ctx, userID)
+	if err != nil && !errors.Is(err, repository.ErrUserNotFound) {
+		return "", fmt.Errorf("could not get user's current avatar: %w", err)
+	}
+
+	ext := filepath.Ext(header.Filename)
+	newFilename := uuid.New().String() + ext
+	filePath := filepath.Join(AVATAR_PATH, newFilename)
+
+	dst, err := os.Create(filePath)
+	if err != nil {
+		return "", fmt.Errorf("could not create file on server: %w", err)
+	}
+	defer dst.Close()
+
+	if _, err := io.Copy(dst, file); err != nil {
+		return "", fmt.Errorf("could not save file: %w", err)
+	}
+
+	publicURL := "/uploads/avatars/" + newFilename
+	if err := s.repo.UpdateUserAvatar(ctx, userID, &publicURL); err != nil {
+		os.Remove(filePath) // Clean up the newly saved file on DB error
+		return "", fmt.Errorf("could not update user avatar in database: %w", err)
+	}
+
+	if oldAvatarURL != nil && *oldAvatarURL != "" {
+		oldFilePath := filepath.Join(".", *oldAvatarURL)
+		if err := os.Remove(oldFilePath); err != nil {
+			slog.Warn("failed to delete old avatar file", "path", oldFilePath, "error", err)
+		}
+	}
+
+	return publicURL, nil
 }
 
 func (s *Service) GetUsers(ctx context.Context) ([]domain.User, error) {

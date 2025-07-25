@@ -76,6 +76,17 @@ export const SetProfileData = (state: State, profileData: ProfileData): State =>
   return { ...state, profileData, isLoading: false };
 };
 
+export const SetAvatarUrl = (state: State, { avatarUrl }: { avatarUrl: string }): State => {
+  if (!state.user || !state.profileData) return state;
+
+  const updatedUser = { ...state.user, avatarUrl };
+  const updatedProfileData = { ...state.profileData, user: { ...state.profileData.user, avatarUrl } };
+
+  localStorage.setItem("peakstreak_user", JSON.stringify(updatedUser));
+
+  return { ...state, user: updatedUser, profileData: updatedProfileData, isLoading: false, error: null };
+};
+
 export const AddHabit = (state: State, newHabit: HabitWithLogs): State => {
   if (!state.profileData) return state;
   return {
@@ -313,6 +324,23 @@ export const FetchFollowingFx = (dispatch: any, { username, token }: { username:
   api.get(`/api/profile/${username}/following`, token)
     .then(users => dispatch(SetFollowerListData, { users }))
     .catch(err => dispatch(SetFollowerListError, err.message));
+};
+
+const KB = 1024;
+const MB = 1024 * KB;
+
+export const UploadAvatarFx = (dispatch: any, { file, token }: { file: File, token: string }) => {
+  if (file.size > 2 * MB) {
+    dispatch(SetError, "File is too large. Max 2MB.");
+    return;
+  }
+  dispatch(SetLoading, true);
+  const formData = new FormData();
+  formData.append("avatar", file);
+
+  api.upload("/api/user/avatar", formData, token)
+    .then(data => dispatch(SetAvatarUrl, { avatarUrl: data.avatarUrl }))
+    .catch(err => dispatch(SetError, err.message));
 };
 
 export const initFx = (dispatch: any, _state: State) => {

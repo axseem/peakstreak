@@ -3,6 +3,9 @@ package service
 import (
 	"context"
 	"errors"
+	"mime/multipart"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -45,6 +48,20 @@ func (m *MockRepository) GetUserByID(ctx context.Context, id uuid.UUID) (*domain
 		return nil, args.Error(1)
 	}
 	return args.Get(0).(*domain.User), args.Error(1)
+}
+
+func (m *MockRepository) GetUserAvatar(ctx context.Context, userID uuid.UUID) (*string, error) {
+	args := m.Called(ctx, userID)
+	// Handle the case where Get(0) is nil (for a nil *string)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*string), args.Error(1)
+}
+
+func (m *MockRepository) UpdateUserAvatar(ctx context.Context, userID uuid.UUID, avatarURL *string) error {
+	args := m.Called(ctx, userID, avatarURL)
+	return args.Error(0)
 }
 
 func (m *MockRepository) CreateHabit(ctx context.Context, habit *domain.Habit) error {
@@ -177,11 +194,13 @@ func TestLoginUser_Success(t *testing.T) {
 
 	password := "password123"
 	hashedPassword, _ := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	avatarURL := "/uploads/avatars/test.jpg"
 	testUser := &domain.User{
 		ID:             uuid.New(),
 		Username:       "testuser",
 		Email:          "test@example.com",
 		HashedPassword: string(hashedPassword),
+		AvatarURL:      &avatarURL,
 	}
 
 	mockRepo.On("GetUserByEmailOrUsername", ctx, "testuser").Return(testUser, nil)
@@ -191,6 +210,8 @@ func TestLoginUser_Success(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotNil(t, loggedInUser)
 	assert.Equal(t, testUser.ID, loggedInUser.ID)
+	assert.NotNil(t, loggedInUser.AvatarURL)
+	assert.Equal(t, avatarURL, *loggedInUser.AvatarURL)
 	assert.Empty(t, loggedInUser.HashedPassword)
 	mockRepo.AssertExpectations(t)
 }
@@ -321,10 +342,12 @@ func TestGetProfileData_Owner_Success(t *testing.T) {
 	s := New(mockRepo)
 	ctx := context.Background()
 
+	avatarURL := "/uploads/avatars/profile.png"
 	testUser := &domain.User{
 		ID:             uuid.New(),
 		Username:       "testuser",
 		HashedPassword: "a_hash",
+		AvatarURL:      &avatarURL,
 	}
 	habit1ID := uuid.New()
 	testHabits := []domain.Habit{{ID: habit1ID, UserID: testUser.ID, Name: "Workout"}}
@@ -342,6 +365,8 @@ func TestGetProfileData_Owner_Success(t *testing.T) {
 	assert.NotNil(t, profileData)
 	assert.True(t, profileData.IsOwner)
 	assert.Equal(t, "testuser", profileData.User.Username)
+	assert.NotNil(t, profileData.User.AvatarURL)
+	assert.Equal(t, avatarURL, *profileData.User.AvatarURL)
 	assert.Empty(t, profileData.User.HashedPassword, "Hashed password should be cleared")
 	assert.Len(t, profileData.Habits, 1)
 	assert.Len(t, profileData.Habits[0].Logs, 1, "Logs should be included for the owner")
@@ -540,9 +565,9 @@ func TestGetFollowers_Success(t *testing.T) {
 		ID:       uuid.New(),
 		Username: "testuser",
 	}
-
+	avatarURL1 := "/uploads/avatars/follower1.png"
 	followers := []domain.PublicUser{
-		{ID: uuid.New(), Username: "follower1"},
+		{ID: uuid.New(), Username: "follower1", AvatarURL: &avatarURL1},
 		{ID: uuid.New(), Username: "follower2"},
 	}
 
@@ -555,6 +580,9 @@ func TestGetFollowers_Success(t *testing.T) {
 	assert.NotNil(t, result)
 	assert.Len(t, result, 2)
 	assert.Equal(t, "follower1", result[0].Username)
+	assert.NotNil(t, result[0].AvatarURL)
+	assert.Equal(t, avatarURL1, *result[0].AvatarURL)
+	assert.Nil(t, result[1].AvatarURL)
 
 	mockRepo.AssertExpectations(t)
 }
@@ -585,9 +613,9 @@ func TestGetFollowing_Success(t *testing.T) {
 		ID:       uuid.New(),
 		Username: "testuser",
 	}
-
+	avatarURL := "/uploads/avatars/following1.png"
 	following := []domain.PublicUser{
-		{ID: uuid.New(), Username: "following1"},
+		{ID: uuid.New(), Username: "following1", AvatarURL: &avatarURL},
 	}
 
 	mockRepo.On("GetUserByUsername", ctx, "testuser").Return(testUser, nil)
@@ -599,6 +627,8 @@ func TestGetFollowing_Success(t *testing.T) {
 	assert.NotNil(t, result)
 	assert.Len(t, result, 1)
 	assert.Equal(t, "following1", result[0].Username)
+	assert.NotNil(t, result[0].AvatarURL)
+	assert.Equal(t, avatarURL, *result[0].AvatarURL)
 
 	mockRepo.AssertExpectations(t)
 }
@@ -618,4 +648,159 @@ func TestGetFollowing_UserNotFound(t *testing.T) {
 
 	mockRepo.AssertExpectations(t)
 	mockRepo.AssertNotCalled(t, "GetFollowing", ctx, mock.Anything)
+}
+
+// --- Avatar Tests ---
+
+func TestUpdateUserAvatar_Success(t *testing.T) {
+	mockRepo := new(MockRepository)
+	s := New(mockRepo)
+	ctx := context.Background()
+	userID := uuid.New()
+
+	if err := os.MkdirAll(AVATAR_PATH, os.ModePerm); err != nil {
+		t.Fatalf("could not create test avatar dir: %v", err)
+	}
+	defer func() {
+		files, _ := filepath.Glob(filepath.Join(AVATAR_PATH, "*"))
+		for _, f := range files {
+			os.Remove(f)
+		}
+	}()
+
+	pngHeaderBytes := []byte{0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a}
+	tmpFile, err := os.CreateTemp("", "test-*.png")
+	assert.NoError(t, err)
+	defer os.Remove(tmpFile.Name())
+	defer tmpFile.Close()
+
+	_, err = tmpFile.Write(pngHeaderBytes)
+	assert.NoError(t, err)
+	_, err = tmpFile.Seek(0, 0)
+	assert.NoError(t, err)
+
+	header := &multipart.FileHeader{
+		Filename: "test.png",
+		Size:     int64(len(pngHeaderBytes)),
+	}
+
+	mockRepo.On("GetUserAvatar", ctx, userID).Return(nil, nil)
+	mockRepo.On("UpdateUserAvatar", ctx, userID, mock.AnythingOfType("*string")).Return(nil)
+
+	avatarURL, err := s.UpdateUserAvatar(ctx, userID, tmpFile, header)
+
+	assert.NoError(t, err)
+	assert.NotEmpty(t, avatarURL)
+	assert.Contains(t, avatarURL, "/uploads/avatars/")
+	assert.Contains(t, avatarURL, ".png")
+	mockRepo.AssertExpectations(t)
+}
+
+func TestUpdateUserAvatar_DeletesOld(t *testing.T) {
+	mockRepo := new(MockRepository)
+	s := New(mockRepo)
+	ctx := context.Background()
+	userID := uuid.New()
+
+	if err := os.MkdirAll(AVATAR_PATH, os.ModePerm); err != nil {
+		t.Fatalf("could not create test avatar dir: %v", err)
+	}
+	defer func() {
+		files, _ := filepath.Glob(filepath.Join(AVATAR_PATH, "*"))
+		for _, f := range files {
+			os.Remove(f)
+		}
+	}()
+
+	oldFileName := "old_avatar.png"
+	oldFilePath := filepath.Join(AVATAR_PATH, oldFileName)
+	oldFile, err := os.Create(oldFilePath)
+	assert.NoError(t, err)
+	oldFile.Close()
+
+	_, err = os.Stat(oldFilePath)
+	assert.NoError(t, err, "Old file should exist before test")
+
+	oldAvatarURL := "/uploads/avatars/" + oldFileName
+
+	mockRepo.On("GetUserAvatar", ctx, userID).Return(&oldAvatarURL, nil)
+	mockRepo.On("UpdateUserAvatar", ctx, userID, mock.AnythingOfType("*string")).Return(nil)
+
+	pngHeaderBytes := []byte{0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a}
+	newTmpFile, err := os.CreateTemp("", "new-*.png")
+	assert.NoError(t, err)
+	defer os.Remove(newTmpFile.Name())
+	defer newTmpFile.Close()
+
+	_, err = newTmpFile.Write(pngHeaderBytes)
+	assert.NoError(t, err)
+	_, err = newTmpFile.Seek(0, 0)
+	assert.NoError(t, err)
+
+	newHeader := &multipart.FileHeader{
+		Filename: "new_avatar.png",
+		Size:     int64(len(pngHeaderBytes)),
+	}
+
+	newAvatarURL, err := s.UpdateUserAvatar(ctx, userID, newTmpFile, newHeader)
+
+	assert.NoError(t, err)
+	assert.NotEmpty(t, newAvatarURL)
+	assert.NotEqual(t, oldAvatarURL, newAvatarURL)
+	mockRepo.AssertExpectations(t)
+
+	_, err = os.Stat(oldFilePath)
+	assert.True(t, os.IsNotExist(err), "Old file should have been deleted")
+}
+
+func TestUpdateUserAvatar_FileTooLarge(t *testing.T) {
+	mockRepo := new(MockRepository)
+	s := New(mockRepo)
+	ctx := context.Background()
+	userID := uuid.New()
+
+	tmpFile, err := os.CreateTemp("", "large-*.png")
+	assert.NoError(t, err)
+	defer os.Remove(tmpFile.Name())
+	defer tmpFile.Close()
+
+	header := &multipart.FileHeader{
+		Filename: "large.png",
+		Size:     MAX_AVATAR_SIZE + 1,
+	}
+
+	_, err = s.UpdateUserAvatar(ctx, userID, tmpFile, header)
+
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "file size exceeds")
+	mockRepo.AssertNotCalled(t, "GetUserAvatar")
+}
+
+func TestUpdateUserAvatar_InvalidMimeType(t *testing.T) {
+	mockRepo := new(MockRepository)
+	s := New(mockRepo)
+	ctx := context.Background()
+	userID := uuid.New()
+
+	fileContent := "this is a text file"
+	tmpFile, err := os.CreateTemp("", "test-*.txt")
+	assert.NoError(t, err)
+	defer os.Remove(tmpFile.Name())
+	defer tmpFile.Close()
+
+	_, err = tmpFile.Write([]byte(fileContent))
+	assert.NoError(t, err)
+	_, err = tmpFile.Seek(0, 0)
+	assert.NoError(t, err)
+
+	header := &multipart.FileHeader{
+		Filename: "document.txt",
+		Size:     int64(len(fileContent)),
+	}
+
+	_, err = s.UpdateUserAvatar(ctx, userID, tmpFile, header)
+
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid file type")
+	mockRepo.AssertNotCalled(t, "GetUserAvatar")
 }

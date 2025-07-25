@@ -34,6 +34,8 @@ type UserRepository interface {
 	GetUserByEmailOrUsername(ctx context.Context, identifier string) (*domain.User, error)
 	GetUsers(ctx context.Context) ([]domain.User, error)
 	GetUserByID(ctx context.Context, id uuid.UUID) (*domain.User, error)
+	GetUserAvatar(ctx context.Context, userID uuid.UUID) (*string, error)
+	UpdateUserAvatar(ctx context.Context, userID uuid.UUID, avatarURL *string) error
 }
 
 type HabitRepository interface {

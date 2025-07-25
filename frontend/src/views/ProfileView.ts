@@ -11,12 +11,14 @@ import {
   ToggleHabitLogFx,
   FollowUserFx,
   UnfollowUserFx,
-  OpenFollowerList
+  OpenFollowerList,
+  UploadAvatarFx
 } from "../state";
 import { toYYYYMMDD, getDatesForYear, groupLogsByYear } from "../lib/date";
 import { Input } from "../components/Input";
 import { Button } from "../components/Button";
 import { UserListPopup } from "../components/UserListPopup";
+import { Avatar } from "../components/Avatar";
 
 const YearTable = ({ year, logs, isEditing, habitId, token }: { year: number, logs: HabitLog[], isEditing: boolean, habitId: string, token: string | null }): VNode<State> | null => {
   const logsMap = new Map(logs.map(log => [toYYYYMMDD(new Date(log.date)), log.status]));
@@ -227,25 +229,51 @@ export const ProfileView = (state: State): VNode<State> => {
   }, text(isFollowing ? "Following" : "Follow"));
 
   const EditButton = () => Button({
-    onclick: ToggleEditMode
+    onclick: ToggleEditMode,
+    class: "self-start"
   }, text(state.isEditing ? "Done" : "Edit"));
 
 
   return h("div", { class: "flex flex-col gap-8 w-full" }, [
+    isOwner && h("input", {
+      id: "avatar-upload",
+      type: "file",
+      accept: "image/png, image/jpeg",
+      class: "hidden",
+      onchange: (s: State, event: Event) => {
+        const file = (event.target as HTMLInputElement).files?.[0];
+        if (file && s.token) {
+          return [s, [UploadAvatarFx, { file, token: s.token }]];
+        }
+        return s;
+      }
+    }),
     h("header", { class: "flex justify-between items-start" }, [
-      h("div", { class: "flex flex-col gap-2" }, [
-        h("h1", { class: "text-3xl font-bold" }, text("@" + user.username)),
-        h("div", { class: "flex gap-4 text-neutral-400" }, [
-          h("button", {
-            class: "hover:underline disabled:no-underline disabled:cursor-default",
-            disabled: followersCount === 0,
-            onclick: (s: State) => OpenFollowerList(s, { type: 'followers', username: user.username })
-          }, text(`${followersCount} Followers`)),
-          h("button", {
-            class: "hover:underline disabled:no-underline disabled:cursor-default",
-            disabled: followingCount === 0,
-            onclick: (s: State) => OpenFollowerList(s, { type: 'following', username: user.username })
-          }, text(`${followingCount} Following`)),
+      h("div", { class: "flex items-center gap-6" }, [
+        h("div", { class: "relative" }, [
+          Avatar({ src: user.avatarUrl, username: user.username, sizeClass: "w-20 h-20" }),
+          isOwner && h("label", {
+            for: "avatar-upload",
+            class: "absolute -bottom-1 -right-1 bg-neutral-800 p-2 rounded-full cursor-pointer hover:bg-neutral-700 border-2 border-black transition-colors",
+            title: "Change profile picture"
+          }, h("svg", { class: "w-4 h-4", xmlns: "http://www.w3.org/2000/svg", fill: "none", viewBox: "0 0 24 24", "stroke-width": "1.5", stroke: "currentColor" },
+            h("path", { "stroke-linecap": "round", "stroke-linejoin": "round", d: "M6.827 6.175A2.31 2.31 0 015.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 00-1.134-.175 2.31 2.31 0 01-1.64-1.055l-.822-1.316a2.192 2.192 0 00-1.736-1.039 48.776 48.776 0 00-5.232 0 2.192 2.192 0 00-1.736 1.039l-.821 1.316zM12 15a3.75 3.75 0 100-7.5 3.75 3.75 0 000 7.5z" })
+          )),
+        ]),
+        h("div", { class: "flex flex-col gap-2" }, [
+          h("h1", { class: "text-3xl font-bold" }, text("@" + user.username)),
+          h("div", { class: "flex gap-4 text-neutral-400" }, [
+            h("button", {
+              class: "hover:underline disabled:no-underline disabled:cursor-default",
+              disabled: followersCount === 0,
+              onclick: (s: State) => OpenFollowerList(s, { type: 'followers', username: user.username })
+            }, text(`${followersCount} Followers`)),
+            h("button", {
+              class: "hover:underline disabled:no-underline disabled:cursor-default",
+              disabled: followingCount === 0,
+              onclick: (s: State) => OpenFollowerList(s, { type: 'following', username: user.username })
+            }, text(`${followingCount} Following`)),
+          ]),
         ]),
       ]),
       isOwner

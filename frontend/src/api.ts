@@ -36,5 +36,16 @@ export const api = {
       throw new Error(data.error || `Request failed with status ${res.status}`);
     }
     return res.status === 204 ? null : await res.json();
+  },
+  async upload(path: string, formData: FormData, token: string | null) {
+    const headers: HeadersInit = {};
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+    // Don't set 'Content-Type': browser will do it with the correct boundary
+    const res = await fetch(path, { method: "POST", headers, body: formData });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      throw new Error(data.error || `Request failed with status ${res.status}`);
+    }
+    return res.json();
   }
 };

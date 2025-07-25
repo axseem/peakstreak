@@ -2,6 +2,7 @@ import { h, text, type VNode } from "hyperapp";
 import type { State, PublicUser, FollowerListState } from "../types";
 import { NavigateFx } from "../router";
 import { CloseFollowerList } from "../state";
+import { Avatar } from "./Avatar";
 
 const UserListItem = (user: PublicUser): VNode<State> =>
   h("a", {
@@ -14,7 +15,7 @@ const UserListItem = (user: PublicUser): VNode<State> =>
       return [newState, [NavigateFx, { path: `/@${user.username}` }]];
     }
   }, [
-    h("div", { class: "w-10 h-10 bg-neutral-700 rounded-full flex-shrink-0" }),
+    Avatar({ src: user.avatarUrl, username: user.username, sizeClass: "w-10 h-10" }),
     h("div", { class: "flex flex-col" }, [
       h("span", { class: "font-bold" }, text(user.username)),
     ])

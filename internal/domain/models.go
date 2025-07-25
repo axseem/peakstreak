@@ -11,12 +11,14 @@ type User struct {
 	Username       string    `json:"username"`
 	Email          string    `json:"email"`
 	HashedPassword string    `json:"-"`
+	AvatarURL      *string   `json:"avatarUrl,omitempty"`
 	CreatedAt      time.Time `json:"createdAt"`
 }
 
 type PublicUser struct {
-	ID       uuid.UUID `json:"id"`
-	Username string    `json:"username"`
+	ID        uuid.UUID `json:"id"`
+	Username  string    `json:"username"`
+	AvatarURL *string   `json:"avatarUrl,omitempty"`
 }
 
 type Habit struct {

@@ -27,6 +27,11 @@ func main() {
 		os.Exit(1)
 	}
 
+	if err := os.MkdirAll("./uploads/avatars", os.ModePerm); err != nil {
+		slog.Error("cannot create uploads directory", "error", err)
+		os.Exit(1)
+	}
+
 	dbpool, err := pgxpool.New(context.Background(), cfg.DBUrl)
 	if err != nil {
 		slog.Error("unable to connect to database", "error", err)

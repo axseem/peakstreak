@@ -20,6 +20,11 @@ func NewRouter(handler *APIHandler) http.Handler {
 	r.Use(middleware.Recoverer)
 	r.Use(middleware.Timeout(60 * time.Second))
 
+	workDir, _ := os.Getwd()
+
+	uploadsDir := http.Dir(filepath.Join(workDir, "uploads"))
+	r.Handle("/uploads/*", http.StripPrefix("/uploads/", http.FileServer(uploadsDir)))
+
 	r.Route("/api", func(r chi.Router) {
 		r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
@@ -36,6 +41,8 @@ func NewRouter(handler *APIHandler) http.Handler {
 		r.Group(func(r chi.Router) {
 			r.Use(handler.authMiddleware)
 
+			r.Post("/user/avatar", handler.UploadAvatar)
+
 			r.Post("/habit", handler.CreateHabit)
 			r.Put("/habit/{habitId}", handler.UpdateHabit)
 			r.Post("/habit/{habitId}/log", handler.LogHabit)
@@ -45,7 +52,6 @@ func NewRouter(handler *APIHandler) http.Handler {
 		})
 	})
 
-	// Serve the Single Page Application (SPA)
 	ServeSPA(r, "./frontend/build")
 
 	return r
@@ -56,14 +62,12 @@ func ServeSPA(r chi.Router, staticPath string) {
 	filesDir := http.Dir(filepath.Join(workDir, staticPath))
 
 	r.Get("/*", func(w http.ResponseWriter, r *http.Request) {
-		if strings.HasPrefix(r.URL.Path, "/api") {
+		if strings.HasPrefix(r.URL.Path, "/api") || strings.HasPrefix(r.URL.Path, "/uploads") {
 			http.NotFound(w, r)
 			return
 		}
 
 		path := r.URL.Path
-		// The path for user profiles like "/@username" will not match a static file,
-		// so it will correctly be served index.html by the else block.
 		if _, err := os.Stat(filepath.Join(staticPath, path)); !os.IsNotExist(err) {
 			http.FileServer(filesDir).ServeHTTP(w, r)
 		} else {

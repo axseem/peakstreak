@@ -377,3 +377,32 @@ func (h *APIHandler) GetFollowing(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, http.StatusOK, users)
 }
+
+func (h *APIHandler) UploadAvatar(w http.ResponseWriter, r *http.Request) {
+	userID, ok := getUserIDFromContext(r.Context())
+	if !ok {
+		errorResponse(w, http.StatusUnauthorized, "Authentication error")
+		return
+	}
+
+	if err := r.ParseMultipartForm(service.MAX_AVATAR_SIZE); err != nil {
+		errorResponse(w, http.StatusBadRequest, "File too large, max 2MB")
+		return
+	}
+
+	file, header, err := r.FormFile("avatar")
+	if err != nil {
+		errorResponse(w, http.StatusBadRequest, "Could not get avatar from form")
+		return
+	}
+	defer file.Close()
+
+	avatarURL, err := h.service.UpdateUserAvatar(r.Context(), userID, file, header)
+	if err != nil {
+		slog.Error("failed to update avatar", "error", err, "userID", userID)
+		errorResponse(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]string{"avatarUrl": avatarURL})
+}

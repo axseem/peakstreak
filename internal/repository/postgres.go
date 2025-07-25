@@ -42,9 +42,9 @@ func (r *PostgresRepository) CreateUser(ctx context.Context, user *domain.User) 
 }
 
 func (r *PostgresRepository) GetUserByEmailOrUsername(ctx context.Context, identifier string) (*domain.User, error) {
-	query := `SELECT id, username, email, hashed_password, created_at FROM users WHERE username = $1 OR email = $1`
+	query := `SELECT id, username, email, hashed_password, avatar_url, created_at FROM users WHERE username = $1 OR email = $1`
 	var user domain.User
-	err := r.db.QueryRow(ctx, query, identifier).Scan(&user.ID, &user.Username, &user.Email, &user.HashedPassword, &user.CreatedAt)
+	err := r.db.QueryRow(ctx, query, identifier).Scan(&user.ID, &user.Username, &user.Email, &user.HashedPassword, &user.AvatarURL, &user.CreatedAt)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, ErrUserNotFound
@@ -55,9 +55,9 @@ func (r *PostgresRepository) GetUserByEmailOrUsername(ctx context.Context, ident
 }
 
 func (r *PostgresRepository) GetUserByUsername(ctx context.Context, username string) (*domain.User, error) {
-	query := `SELECT id, username, email, hashed_password, created_at FROM users WHERE username = $1`
+	query := `SELECT id, username, email, hashed_password, avatar_url, created_at FROM users WHERE username = $1`
 	var user domain.User
-	err := r.db.QueryRow(ctx, query, username).Scan(&user.ID, &user.Username, &user.Email, &user.HashedPassword, &user.CreatedAt)
+	err := r.db.QueryRow(ctx, query, username).Scan(&user.ID, &user.Username, &user.Email, &user.HashedPassword, &user.AvatarURL, &user.CreatedAt)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, ErrUserNotFound
@@ -68,7 +68,7 @@ func (r *PostgresRepository) GetUserByUsername(ctx context.Context, username str
 }
 
 func (r *PostgresRepository) GetUsers(ctx context.Context) ([]domain.User, error) {
-	query := `SELECT id, username, email, created_at FROM users`
+	query := `SELECT id, username, email, avatar_url, created_at FROM users`
 
 	rows, err := r.db.Query(ctx, query)
 	if err != nil {
@@ -84,9 +84,9 @@ func (r *PostgresRepository) GetUsers(ctx context.Context) ([]domain.User, error
 }
 
 func (r *PostgresRepository) GetUserByID(ctx context.Context, id uuid.UUID) (*domain.User, error) {
-	query := `SELECT id, username, email, created_at FROM users WHERE id = $1`
+	query := `SELECT id, username, email, avatar_url, created_at FROM users WHERE id = $1`
 	var user domain.User
-	err := r.db.QueryRow(ctx, query, id).Scan(&user.ID, &user.Username, &user.Email, &user.CreatedAt)
+	err := r.db.QueryRow(ctx, query, id).Scan(&user.ID, &user.Username, &user.Email, &user.AvatarURL, &user.CreatedAt)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, ErrUserNotFound
@@ -94,6 +94,25 @@ func (r *PostgresRepository) GetUserByID(ctx context.Context, id uuid.UUID) (*do
 		return nil, err
 	}
 	return &user, nil
+}
+
+func (r *PostgresRepository) GetUserAvatar(ctx context.Context, userID uuid.UUID) (*string, error) {
+	var avatarURL *string
+	query := `SELECT avatar_url FROM users WHERE id = $1`
+	err := r.db.QueryRow(ctx, query, userID).Scan(&avatarURL)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrUserNotFound
+		}
+		return nil, err
+	}
+	return avatarURL, nil
+}
+
+func (r *PostgresRepository) UpdateUserAvatar(ctx context.Context, userID uuid.UUID, avatarURL *string) error {
+	query := `UPDATE users SET avatar_url = $1 WHERE id = $2`
+	_, err := r.db.Exec(ctx, query, avatarURL, userID)
+	return err
 }
 
 func (r *PostgresRepository) CreateHabit(ctx context.Context, habit *domain.Habit) error {
@@ -232,7 +251,7 @@ func (r *PostgresRepository) GetFollowingCount(ctx context.Context, userID uuid.
 
 func (r *PostgresRepository) GetFollowers(ctx context.Context, userID uuid.UUID) ([]domain.PublicUser, error) {
 	query := `
-		SELECT u.id, u.username
+		SELECT u.id, u.username, u.avatar_url
 		FROM users u
 		JOIN followers f ON u.id = f.follower_id
 		WHERE f.following_id = $1
@@ -251,7 +270,7 @@ func (r *PostgresRepository) GetFollowers(ctx context.Context, userID uuid.UUID)
 
 func (r *PostgresRepository) GetFollowing(ctx context.Context, userID uuid.UUID) ([]domain.PublicUser, error) {
 	query := `
-		SELECT u.id, u.username
+		SELECT u.id, u.username, u.avatar_url
 		FROM users u
 		JOIN followers f ON u.id = f.following_id
 		WHERE f.follower_id = $1

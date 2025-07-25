@@ -3,6 +3,7 @@ import type { State } from "../types";
 import { NavigateFx } from "../router";
 import { Logout, ToggleProfileMenu, CloseProfileMenu } from "../state";
 import { Popup } from "./Popup";
+import { Avatar } from "./Avatar";
 
 const NavLink = ({ path, label, active }: { path: string, label: string, active: boolean }): VNode<State> =>
   h("a",
@@ -56,7 +57,7 @@ const ProfileMenu = (state: State): VNode<State> => {
           return s;
         }
       }, [
-        h("div", { class: "w-10 h-10 bg-neutral-700 rounded-full flex-shrink-0" }),
+        Avatar({ src: state.user?.avatarUrl, username: state.user?.username, sizeClass: "w-10 h-10" }),
         h("span", { class: "text-neutral-300 truncate" }, text("@" + state.user?.username || "Profile"))
       ]),
       h("button", {

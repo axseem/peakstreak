@@ -2,11 +2,13 @@ export type User = {
   id: string;
   username: string;
   email: string;
+  avatarUrl?: string;
 };
 
 export type PublicUser = {
   id: string;
   username: string;
+  avatarUrl?: string;
 };
 
 export type Habit = {
