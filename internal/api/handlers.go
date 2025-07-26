@@ -149,7 +149,8 @@ func (h *APIHandler) GetProfilePageData(w http.ResponseWriter, r *http.Request) 
 }
 
 type CreateHabitRequest struct {
-	Name string `json:"name" validate:"required,min=1,max=100"`
+	Name     string `json:"name" validate:"required,min=1,max=100"`
+	ColorHue int    `json:"colorHue" validate:"min=0,max=360"`
 }
 
 func (h *APIHandler) CreateHabit(w http.ResponseWriter, r *http.Request) {
@@ -170,7 +171,8 @@ func (h *APIHandler) CreateHabit(w http.ResponseWriter, r *http.Request) {
 	}
 
 	params := service.CreateHabitParams{
-		Name: req.Name,
+		Name:     req.Name,
+		ColorHue: req.ColorHue,
 	}
 
 	habit, err := h.service.CreateHabit(r.Context(), params, userID)
@@ -183,7 +185,8 @@ func (h *APIHandler) CreateHabit(w http.ResponseWriter, r *http.Request) {
 }
 
 type UpdateHabitRequest struct {
-	Name string `json:"name" validate:"required,min=1,max=100"`
+	Name     string `json:"name" validate:"required,min=1,max=100"`
+	ColorHue int    `json:"colorHue" validate:"required,min=0,max=360"`
 }
 
 func (h *APIHandler) UpdateHabit(w http.ResponseWriter, r *http.Request) {
@@ -212,7 +215,8 @@ func (h *APIHandler) UpdateHabit(w http.ResponseWriter, r *http.Request) {
 	}
 
 	params := service.UpdateHabitParams{
-		Name: req.Name,
+		Name:     req.Name,
+		ColorHue: req.ColorHue,
 	}
 
 	_, err = h.service.UpdateHabit(r.Context(), params, habitID, userID)

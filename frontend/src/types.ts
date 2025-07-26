@@ -15,6 +15,7 @@ export type Habit = {
   id: string;
   userId: string;
   name: string;
+  colorHue: number;
   createdAt: string;
 };
 
@@ -62,6 +63,7 @@ export type State = {
   isLoading: boolean;
   error: string | null;
   newHabitName: string;
+  newHabitColorHue: number;
   isAddingHabit: boolean;
   isProfileMenuOpen: boolean;
   isEditing: boolean;

@@ -25,6 +25,7 @@ type Habit struct {
 	ID        uuid.UUID `json:"id"`
 	UserID    uuid.UUID `json:"userId"`
 	Name      string    `json:"name"`
+	ColorHue  int       `json:"colorHue"`
 	CreatedAt time.Time `json:"createdAt"`
 }
 

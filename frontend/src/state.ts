@@ -16,6 +16,7 @@ export const initialState: State = {
   isLoading: false,
   error: null,
   newHabitName: "",
+  newHabitColorHue: 180,
   isAddingHabit: false,
   isProfileMenuOpen: false,
   isEditing: false,
@@ -91,6 +92,11 @@ export const HandleFormInput = (state: State, event: Event): State => ({
   newHabitName: (event.target as HTMLInputElement).value,
 });
 
+export const HandleColorInput = (state: State, event: Event): State => ({
+  ...state,
+  newHabitColorHue: parseInt((event.target as HTMLInputElement).value, 10),
+});
+
 export const SetAuth = (state: State, { user, token }: { user: User, token: string }): [State, any] => {
   localStorage.setItem("peakstreak_user", JSON.stringify(user));
   localStorage.setItem("peakstreak_token", token);
@@ -119,6 +125,7 @@ export const AddHabit = (state: State, newHabit: HabitWithLogs): State => {
     ...state,
     isLoading: false,
     newHabitName: "",
+    newHabitColorHue: 180,
     isAddingHabit: false,
     profileData: {
       ...state.profileData,
@@ -161,7 +168,7 @@ export const UpdateHabitLog = (state: State, { habitId, log }: { habitId: string
   };
 };
 
-export const UpdateHabitName = (state: State, { habitId, name }: { habitId: string, name: string }): State => {
+export const UpdateHabit = (state: State, { habitId, name, colorHue }: { habitId: string, name: string, colorHue: number }): State => {
   if (!state.profileData) return state;
   return {
     ...state,
@@ -169,7 +176,7 @@ export const UpdateHabitName = (state: State, { habitId, name }: { habitId: stri
     profileData: {
       ...state.profileData,
       habits: state.profileData.habits.map(h =>
-        h.id === habitId ? { ...h, name } : h
+        h.id === habitId ? { ...h, name, colorHue } : h
       )
     }
   };
@@ -191,6 +198,7 @@ export const HideAddHabitForm = (state: State): State => ({
   ...state,
   isAddingHabit: false,
   newHabitName: "",
+  newHabitColorHue: 180,
 });
 
 export const ToggleProfileMenu = (state: State): State => ({
@@ -313,9 +321,9 @@ export const SignUpFx = (dispatch: any, { username, email, password }: any) => {
     .catch(err => dispatch(SetError, err.message));
 };
 
-export const CreateHabitFx = (dispatch: any, { name, token }: { name: string, token: string }) => {
+export const CreateHabitFx = (dispatch: any, { name, colorHue, token }: { name: string, colorHue: number, token: string }) => {
   dispatch(SetLoading, true);
-  api.post("/api/habit", { name }, token)
+  api.post("/api/habit", { name, colorHue }, token)
     .then((newHabit) => {
       const newHabitWithLogs: HabitWithLogs = { ...newHabit, logs: [] };
       dispatch(AddHabit, newHabitWithLogs);
@@ -331,10 +339,10 @@ export const LogHabitFx = (dispatch: any, { habitId, token }: { habitId: string,
     .catch(err => dispatch(SetError, err.message));
 };
 
-export const UpdateHabitNameFx = (dispatch: any, { habitId, name, token }: { habitId: string, name: string, token: string }) => {
+export const UpdateHabitFx = (dispatch: any, { habitId, name, colorHue, token }: { habitId: string, name: string, colorHue: number, token: string }) => {
   dispatch(SetLoading, true);
-  api.put(`/api/habit/${habitId}`, { name }, token)
-    .then(() => dispatch(UpdateHabitName, { habitId, name }))
+  api.put(`/api/habit/${habitId}`, { name, colorHue }, token)
+    .then(() => dispatch(UpdateHabit, { habitId, name, colorHue }))
     .catch(err => dispatch(SetError, err.message));
 };
 
@@ -398,4 +406,4 @@ export const SearchUsersFx = (dispatch: any, { query }: { query: string }) => {
 export const initFx = (dispatch: any, _state: State) => {
   const { view, username } = path_to_view(window.location.pathname);
   dispatch(SetView, { view, username });
-};;
+};

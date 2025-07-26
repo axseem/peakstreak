@@ -137,12 +137,12 @@ func (r *PostgresRepository) UpdateUserAvatar(ctx context.Context, userID uuid.U
 }
 
 func (r *PostgresRepository) CreateHabit(ctx context.Context, habit *domain.Habit) error {
-	query := `INSERT INTO habits (id, user_id, name) VALUES ($1, $2, $3) RETURNING created_at`
-	return r.db.QueryRow(ctx, query, habit.ID, habit.UserID, habit.Name).Scan(&habit.CreatedAt)
+	query := `INSERT INTO habits (id, user_id, name, color_hue) VALUES ($1, $2, $3, $4) RETURNING created_at`
+	return r.db.QueryRow(ctx, query, habit.ID, habit.UserID, habit.Name, habit.ColorHue).Scan(&habit.CreatedAt)
 }
 
 func (r *PostgresRepository) GetHabitsByUserID(ctx context.Context, userID uuid.UUID) ([]domain.Habit, error) {
-	query := `SELECT id, user_id, name, created_at FROM habits WHERE user_id = $1 ORDER BY created_at DESC`
+	query := `SELECT id, user_id, name, color_hue, created_at FROM habits WHERE user_id = $1 ORDER BY created_at DESC`
 	rows, err := r.db.Query(ctx, query, userID)
 	if err != nil {
 		return nil, err
@@ -157,9 +157,9 @@ func (r *PostgresRepository) GetHabitsByUserID(ctx context.Context, userID uuid.
 }
 
 func (r *PostgresRepository) GetHabitByID(ctx context.Context, habitID uuid.UUID) (*domain.Habit, error) {
-	query := `SELECT id, user_id, name, created_at FROM habits WHERE id = $1`
+	query := `SELECT id, user_id, name, color_hue, created_at FROM habits WHERE id = $1`
 	var habit domain.Habit
-	err := r.db.QueryRow(ctx, query, habitID).Scan(&habit.ID, &habit.UserID, &habit.Name, &habit.CreatedAt)
+	err := r.db.QueryRow(ctx, query, habitID).Scan(&habit.ID, &habit.UserID, &habit.Name, &habit.ColorHue, &habit.CreatedAt)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, ErrHabitNotFound
@@ -170,8 +170,8 @@ func (r *PostgresRepository) GetHabitByID(ctx context.Context, habitID uuid.UUID
 }
 
 func (r *PostgresRepository) UpdateHabit(ctx context.Context, habit *domain.Habit) error {
-	query := `UPDATE habits SET name = $1 WHERE id = $2`
-	tag, err := r.db.Exec(ctx, query, habit.Name, habit.ID)
+	query := `UPDATE habits SET name = $1, color_hue = $2 WHERE id = $3`
+	tag, err := r.db.Exec(ctx, query, habit.Name, habit.ColorHue, habit.ID)
 	if err != nil {
 		return err
 	}
