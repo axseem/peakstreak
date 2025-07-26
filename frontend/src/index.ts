@@ -10,8 +10,6 @@ import { UserSearchView } from "./views/UserSearchView";
 import { LeaderboardView } from "./views/LeaderboardView";
 import { ExploreView } from "./views/ExploreView";
 
-const ComingSoon = (page: string) => h<State>("div", { class: "w-full h-full flex items-center justify-center text-2xl text-neutral-500" }, text(`${page} - Coming Soon!`));
-
 const renderView = (state: State) => {
   switch (state.view) {
     case "login": return AuthForm({ isLogin: true })(state);
