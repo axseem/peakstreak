@@ -83,6 +83,14 @@ func (m *MockRepository) GetHabitsByUserID(ctx context.Context, userID uuid.UUID
 	return args.Get(0).([]domain.Habit), args.Error(1)
 }
 
+func (m *MockRepository) GetHabitsByUserIDs(ctx context.Context, userIDs []uuid.UUID) ([]domain.Habit, error) {
+	args := m.Called(ctx, userIDs)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]domain.Habit), args.Error(1)
+}
+
 func (m *MockRepository) GetHabitByID(ctx context.Context, habitID uuid.UUID) (*domain.Habit, error) {
 	args := m.Called(ctx, habitID)
 	if args.Get(0) == nil {
@@ -170,6 +178,14 @@ func (m *MockRepository) GetFollowing(ctx context.Context, userID uuid.UUID) ([]
 		return nil, args.Error(1)
 	}
 	return args.Get(0).([]domain.PublicUser), args.Error(1)
+}
+
+func (m *MockRepository) GetLeaderboardRanks(ctx context.Context, limit int) ([]domain.LeaderboardRank, error) {
+	args := m.Called(ctx, limit)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]domain.LeaderboardRank), args.Error(1)
 }
 
 func TestCreateUser_Success(t *testing.T) {
@@ -861,4 +877,87 @@ func TestSearchUsers_NoResults(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Len(t, users, 0)
 	mockRepo.AssertExpectations(t)
+}
+
+// --- Leaderboard Tests ---
+
+func TestGetLeaderboard_Success(t *testing.T) {
+	mockRepo := new(MockRepository)
+	s := New(mockRepo)
+	ctx := context.Background()
+
+	// --- Test Data ---
+	user1ID := uuid.New()
+	user2ID := uuid.New()
+
+	ranks := []domain.LeaderboardRank{
+		{UserID: user1ID, Username: "user1", TotalLoggedDays: 100},
+		{UserID: user2ID, Username: "user2", TotalLoggedDays: 50},
+	}
+
+	userIDs := []uuid.UUID{user1ID, user2ID}
+
+	habit1ID := uuid.New()
+	habit2ID := uuid.New()
+	habits := []domain.Habit{
+		{ID: habit1ID, UserID: user1ID, Name: "Workout"},
+		{ID: habit2ID, UserID: user2ID, Name: "Read"},
+	}
+
+	habitIDs := []uuid.UUID{habit1ID, habit2ID}
+
+	logs := []domain.HabitLog{
+		{HabitID: habit1ID, Status: true},
+	}
+
+	// --- Mock Setup ---
+	mockRepo.On("GetLeaderboardRanks", ctx, 50).Return(ranks, nil)
+	mockRepo.On("GetHabitsByUserIDs", ctx, userIDs).Return(habits, nil)
+	mockRepo.On("GetLogsForHabits", ctx, habitIDs).Return(logs, nil)
+
+	// --- Call Service Method ---
+	leaderboard, err := s.GetLeaderboard(ctx)
+
+	// --- Assertions ---
+	assert.NoError(t, err)
+	assert.Len(t, leaderboard, 2)
+
+	// Check user 1
+	assert.Equal(t, user1ID, leaderboard[0].User.ID)
+	assert.Equal(t, "user1", leaderboard[0].User.Username)
+	assert.Equal(t, int64(100), leaderboard[0].TotalLoggedDays)
+	assert.Len(t, leaderboard[0].Habits, 1)
+	assert.Equal(t, habit1ID, leaderboard[0].Habits[0].ID)
+	assert.Len(t, leaderboard[0].Habits[0].Logs, 1)
+
+	// Check user 2
+	assert.Equal(t, user2ID, leaderboard[1].User.ID)
+	assert.Equal(t, "user2", leaderboard[1].User.Username)
+	assert.Equal(t, int64(50), leaderboard[1].TotalLoggedDays)
+	assert.Len(t, leaderboard[1].Habits, 1)
+	assert.Equal(t, habit2ID, leaderboard[1].Habits[0].ID)
+	assert.Len(t, leaderboard[1].Habits[0].Logs, 0) // user2 has a habit but no logs in this test data
+
+	mockRepo.AssertExpectations(t)
+}
+
+func TestGetLeaderboard_NoUsers(t *testing.T) {
+	mockRepo := new(MockRepository)
+	s := New(mockRepo)
+	ctx := context.Background()
+
+	// --- Mock Setup ---
+	mockRepo.On("GetLeaderboardRanks", ctx, 50).Return([]domain.LeaderboardRank{}, nil)
+
+	// --- Call Service Method ---
+	leaderboard, err := s.GetLeaderboard(ctx)
+
+	// --- Assertions ---
+	assert.NoError(t, err)
+	assert.Len(t, leaderboard, 0)
+	assert.NotNil(t, leaderboard) // Should be an empty slice, not nil
+
+	mockRepo.AssertExpectations(t)
+	mockRepo.AssertNotCalled(t, "GetHabitsByUserIDs", ctx, mock.Anything)
+	mockRepo.AssertNotCalled(t, "GetLogsForHabits", ctx, mock.Anything)
 }

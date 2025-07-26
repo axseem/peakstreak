@@ -413,3 +413,78 @@ func (s *Service) GetFollowing(ctx context.Context, username string) ([]domain.P
 	}
 	return s.repo.GetFollowing(ctx, user.ID)
 }
+
+type LeaderboardEntry struct {
+	User            domain.PublicUser      `json:"user"`
+	TotalLoggedDays int64                  `json:"totalLoggedDays"`
+	Habits          []domain.HabitWithLogs `json:"habits"`
+}
+
+func (s *Service) GetLeaderboard(ctx context.Context) ([]LeaderboardEntry, error) {
+	ranks, err := s.repo.GetLeaderboardRanks(ctx, 50)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get leaderboard ranks: %w", err)
+	}
+
+	if len(ranks) == 0 {
+		return []LeaderboardEntry{}, nil
+	}
+
+	userIDs := make([]uuid.UUID, len(ranks))
+	for i, rank := range ranks {
+		userIDs[i] = rank.UserID
+	}
+
+	habits, err := s.repo.GetHabitsByUserIDs(ctx, userIDs)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get habits for leaderboard users: %w", err)
+	}
+
+	habitIDs := make([]uuid.UUID, len(habits))
+	for i, habit := range habits {
+		habitIDs[i] = habit.ID
+	}
+
+	logs, err := s.repo.GetLogsForHabits(ctx, habitIDs)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get logs for leaderboard habits: %w", err)
+	}
+
+	logsByHabitID := make(map[uuid.UUID][]domain.HabitLog)
+	for _, log := range logs {
+		logsByHabitID[log.HabitID] = append(logsByHabitID[log.HabitID], log)
+	}
+
+	habitsByUserID := make(map[uuid.UUID][]domain.HabitWithLogs)
+	for _, habit := range habits {
+		logsForHabit := logsByHabitID[habit.ID]
+		if logsForHabit == nil {
+			logsForHabit = make([]domain.HabitLog, 0)
+		}
+		habitWithLogs := domain.HabitWithLogs{
+			Habit: habit,
+			Logs:  logsForHabit,
+		}
+		habitsByUserID[habit.UserID] = append(habitsByUserID[habit.UserID], habitWithLogs)
+	}
+
+	result := make([]LeaderboardEntry, len(ranks))
+	for i, rank := range ranks {
+		userHabits := habitsByUserID[rank.UserID]
+		if userHabits == nil {
+			userHabits = []domain.HabitWithLogs{}
+		}
+
+		result[i] = LeaderboardEntry{
+			User: domain.PublicUser{
+				ID:        rank.UserID,
+				Username:  rank.Username,
+				AvatarURL: rank.AvatarURL,
+			},
+			TotalLoggedDays: rank.TotalLoggedDays,
+			Habits:          userHabits,
+		}
+	}
+
+	return result, nil
+}

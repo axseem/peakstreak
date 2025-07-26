@@ -42,3 +42,10 @@ type HabitWithLogs struct {
 	Habit
 	Logs []HabitLog `json:"logs"`
 }
+
+type LeaderboardRank struct {
+	UserID          uuid.UUID
+	Username        string
+	AvatarURL       *string
+	TotalLoggedDays int64
+}

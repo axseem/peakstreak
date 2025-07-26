@@ -156,6 +156,24 @@ func (r *PostgresRepository) GetHabitsByUserID(ctx context.Context, userID uuid.
 	return habits, nil
 }
 
+func (r *PostgresRepository) GetHabitsByUserIDs(ctx context.Context, userIDs []uuid.UUID) ([]domain.Habit, error) {
+	if len(userIDs) == 0 {
+		return []domain.Habit{}, nil
+	}
+	query := `SELECT id, user_id, name, color_hue, created_at FROM habits WHERE user_id = ANY($1) ORDER BY user_id, created_at DESC`
+	rows, err := r.db.Query(ctx, query, userIDs)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	habits, err := pgx.CollectRows(rows, pgx.RowToStructByName[domain.Habit])
+	if err != nil {
+		return nil, err
+	}
+	return habits, nil
+}
+
 func (r *PostgresRepository) GetHabitByID(ctx context.Context, habitID uuid.UUID) (*domain.Habit, error) {
 	query := `SELECT id, user_id, name, color_hue, created_at FROM habits WHERE id = $1`
 	var habit domain.Habit
@@ -306,4 +324,38 @@ func (r *PostgresRepository) GetFollowing(ctx context.Context, userID uuid.UUID)
 		return nil, err
 	}
 	return users, nil
+}
+
+func (r *PostgresRepository) GetLeaderboardRanks(ctx context.Context, limit int) ([]domain.LeaderboardRank, error) {
+	query := `
+		SELECT
+			u.id as user_id,
+			u.username,
+			u.avatar_url,
+			COUNT(hl.id) as total_logged_days
+		FROM
+			users u
+		JOIN
+			habits h ON u.id = h.user_id
+		JOIN
+			habit_logs hl ON h.id = hl.habit_id
+		WHERE
+			hl.status = TRUE
+		GROUP BY
+			u.id
+		ORDER BY
+			total_logged_days DESC
+		LIMIT $1`
+
+	rows, err := r.db.Query(ctx, query, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	ranks, err := pgx.CollectRows(rows, pgx.RowToStructByName[domain.LeaderboardRank])
+	if err != nil {
+		return nil, err
+	}
+	return ranks, nil
 }

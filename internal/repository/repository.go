@@ -42,6 +42,7 @@ type UserRepository interface {
 type HabitRepository interface {
 	CreateHabit(ctx context.Context, habit *domain.Habit) error
 	GetHabitsByUserID(ctx context.Context, userID uuid.UUID) ([]domain.Habit, error)
+	GetHabitsByUserIDs(ctx context.Context, userIDs []uuid.UUID) ([]domain.Habit, error)
 	GetHabitByID(ctx context.Context, habitID uuid.UUID) (*domain.Habit, error)
 	UpdateHabit(ctx context.Context, habit *domain.Habit) error
 	UpsertHabitLog(ctx context.Context, log *domain.HabitLog) error
@@ -59,8 +60,13 @@ type FollowerRepository interface {
 	GetFollowing(ctx context.Context, userID uuid.UUID) ([]domain.PublicUser, error)
 }
 
+type LeaderboardRepository interface {
+	GetLeaderboardRanks(ctx context.Context, limit int) ([]domain.LeaderboardRank, error)
+}
+
 type AllInOneRepository interface {
 	UserRepository
 	HabitRepository
 	FollowerRepository
+	LeaderboardRepository
 }

@@ -423,3 +423,14 @@ func (h *APIHandler) SearchUsers(w http.ResponseWriter, r *http.Request) {
 
 	writeJSON(w, http.StatusOK, users)
 }
+
+func (h *APIHandler) GetLeaderboard(w http.ResponseWriter, r *http.Request) {
+	leaderboardData, err := h.service.GetLeaderboard(r.Context())
+	if err != nil {
+		slog.Error("could not retrieve leaderboard data", "error", err)
+		errorResponse(w, http.StatusInternalServerError, "Could not retrieve leaderboard")
+		return
+	}
+
+	writeJSON(w, http.StatusOK, leaderboardData)
+}

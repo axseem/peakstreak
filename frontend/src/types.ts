@@ -55,6 +55,18 @@ export type SearchState = {
   error: string | null;
 };
 
+export type LeaderboardEntry = {
+  user: PublicUser;
+  totalLoggedDays: number;
+  habits: HabitWithLogs[];
+};
+
+export type LeaderboardState = {
+  users: LeaderboardEntry[];
+  isLoading: boolean;
+  error: string | null;
+};
+
 export type State = {
   view: "login" | "signup" | "profile" | "leaderboard" | "explore" | "not_found" | "home" | "search";
   user: User | null;
@@ -69,4 +81,5 @@ export type State = {
   isEditing: boolean;
   followerList: FollowerListState;
   search: SearchState;
+  leaderboard: LeaderboardState;
 };
