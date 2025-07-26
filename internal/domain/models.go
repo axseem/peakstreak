@@ -49,3 +49,14 @@ type LeaderboardRank struct {
 	AvatarURL       *string
 	TotalLoggedDays int64
 }
+
+type ExploreItem struct {
+	UserID         uuid.UUID
+	Username       string
+	AvatarURL      *string
+	HabitID        uuid.UUID
+	HabitUserID    uuid.UUID
+	HabitName      string
+	HabitColorHue  int
+	HabitCreatedAt time.Time
+}

@@ -488,3 +488,65 @@ func (s *Service) GetLeaderboard(ctx context.Context) ([]LeaderboardEntry, error
 
 	return result, nil
 }
+
+type ExploreEntry struct {
+	User  domain.PublicUser    `json:"user"`
+	Habit domain.HabitWithLogs `json:"habit"`
+}
+
+func (s *Service) GetExplorePage(ctx context.Context) ([]ExploreEntry, error) {
+	items, err := s.repo.GetExploreItems(ctx, 20) // limit to 20
+	if err != nil {
+		return nil, fmt.Errorf("failed to get explore items: %w", err)
+	}
+
+	if len(items) == 0 {
+		return []ExploreEntry{}, nil
+	}
+
+	// Collect habit IDs to fetch all their logs in one go
+	habitIDs := make([]uuid.UUID, len(items))
+	for i, item := range items {
+		habitIDs[i] = item.HabitID
+	}
+
+	logs, err := s.repo.GetLogsForHabits(ctx, habitIDs)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get logs for explore habits: %w", err)
+	}
+
+	// Group logs by habit ID for efficient lookup
+	logsByHabitID := make(map[uuid.UUID][]domain.HabitLog)
+	for _, log := range logs {
+		logsByHabitID[log.HabitID] = append(logsByHabitID[log.HabitID], log)
+	}
+
+	// Build the final response
+	result := make([]ExploreEntry, len(items))
+	for i, item := range items {
+		habitLogs := logsByHabitID[item.HabitID]
+		if habitLogs == nil {
+			habitLogs = []domain.HabitLog{}
+		}
+
+		result[i] = ExploreEntry{
+			User: domain.PublicUser{
+				ID:        item.UserID,
+				Username:  item.Username,
+				AvatarURL: item.AvatarURL,
+			},
+			Habit: domain.HabitWithLogs{
+				Habit: domain.Habit{
+					ID:        item.HabitID,
+					UserID:    item.HabitUserID,
+					Name:      item.HabitName,
+					ColorHue:  item.HabitColorHue,
+					CreatedAt: item.HabitCreatedAt,
+				},
+				Logs: habitLogs,
+			},
+		}
+	}
+
+	return result, nil
+}

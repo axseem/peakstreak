@@ -29,6 +29,7 @@ func NewRouter(handler *APIHandler) http.Handler {
 		r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 		})
+		r.Get("/explore", handler.GetExplorePage)
 		r.Get("/leaderboard", handler.GetLeaderboard)
 		r.Get("/profile/{username}", handler.GetProfilePageData)
 		r.Get("/profile/{username}/followers", handler.GetFollowers)

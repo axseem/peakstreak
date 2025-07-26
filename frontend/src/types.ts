@@ -67,6 +67,17 @@ export type LeaderboardState = {
   error: string | null;
 };
 
+export type ExploreEntry = {
+  user: PublicUser;
+  habit: HabitWithLogs;
+};
+
+export type ExploreState = {
+  entries: ExploreEntry[];
+  isLoading: boolean;
+  error: string | null;
+};
+
 export type State = {
   view: "login" | "signup" | "profile" | "leaderboard" | "explore" | "not_found" | "home" | "search";
   user: User | null;
@@ -82,4 +93,5 @@ export type State = {
   followerList: FollowerListState;
   search: SearchState;
   leaderboard: LeaderboardState;
+  explore: ExploreState;
 };

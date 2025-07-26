@@ -69,4 +69,5 @@ type AllInOneRepository interface {
 	HabitRepository
 	FollowerRepository
 	LeaderboardRepository
+	GetExploreItems(ctx context.Context, limit int) ([]domain.ExploreItem, error)
 }

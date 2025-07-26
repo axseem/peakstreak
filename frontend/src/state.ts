@@ -1,5 +1,5 @@
 import { api } from "./api";
-import type { State, User, HabitWithLogs, HabitLog, ProfileData, PublicUser, SearchState, LeaderboardEntry } from "./types";
+import type { State, User, HabitWithLogs, HabitLog, ProfileData, PublicUser, SearchState, LeaderboardEntry, ExploreEntry } from "./types";
 import { path_to_view, NavigateFx } from "./router";
 import { toYYYYMMDD } from "./lib/date";
 
@@ -39,6 +39,11 @@ export const initialState: State = {
     isLoading: false,
     error: null,
   },
+  explore: {
+    entries: [],
+    isLoading: false,
+    error: null,
+  },
 };
 
 // --- Actions (Synchronous State Updaters) ---
@@ -54,6 +59,11 @@ export const SetView = (state: State, { view, username }: { view: State["view"],
   const authRequiredViews: State["view"][] = [];
   if (authRequiredViews.includes(view) && !state.token) {
     return [state, [NavigateFx, { path: "/login", replace: true }]];
+  }
+
+  if (view === "explore") {
+    const newState = { ...state, view, error: null, isEditing: false, explore: { ...state.explore, isLoading: true, error: null } };
+    return [newState, [FetchExploreDataFx, {}]];
   }
 
   if (view === "leaderboard") {
@@ -323,6 +333,25 @@ export const SetLeaderboardError = (state: State, error: string): State => ({
   }
 });
 
+export const SetExploreData = (state: State, { entries }: { entries: ExploreEntry[] }): State => ({
+  ...state,
+  explore: {
+    entries,
+    isLoading: false,
+    error: null,
+  }
+});
+
+export const SetExploreError = (state: State, error: string): State => ({
+  ...state,
+  explore: {
+    ...state.explore,
+    entries: [],
+    isLoading: false,
+    error,
+  }
+});
+
 
 // --- Effects (Asynchronous Side-Effects) ---
 
@@ -436,6 +465,12 @@ export const FetchLeaderboardFx = (dispatch: any) => {
   api.get("/api/leaderboard", null)
     .then(data => dispatch(SetLeaderboardData, { users: data }))
     .catch(err => dispatch(SetLeaderboardError, err.message));
+};
+
+export const FetchExploreDataFx = (dispatch: any) => {
+  api.get("/api/explore", null)
+    .then(data => dispatch(SetExploreData, { entries: data }))
+    .catch(err => dispatch(SetExploreError, err.message));
 };
 
 export const initFx = (dispatch: any, _state: State) => {

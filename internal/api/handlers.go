@@ -434,3 +434,14 @@ func (h *APIHandler) GetLeaderboard(w http.ResponseWriter, r *http.Request) {
 
 	writeJSON(w, http.StatusOK, leaderboardData)
 }
+
+func (h *APIHandler) GetExplorePage(w http.ResponseWriter, r *http.Request) {
+	exploreData, err := h.service.GetExplorePage(r.Context())
+	if err != nil {
+		slog.Error("could not retrieve explore page data", "error", err)
+		errorResponse(w, http.StatusInternalServerError, "Could not retrieve explore page data")
+		return
+	}
+
+	writeJSON(w, http.StatusOK, exploreData)
+}

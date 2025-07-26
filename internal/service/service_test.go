@@ -188,6 +188,14 @@ func (m *MockRepository) GetLeaderboardRanks(ctx context.Context, limit int) ([]
 	return args.Get(0).([]domain.LeaderboardRank), args.Error(1)
 }
 
+func (m *MockRepository) GetExploreItems(ctx context.Context, limit int) ([]domain.ExploreItem, error) {
+	args := m.Called(ctx, limit)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]domain.ExploreItem), args.Error(1)
+}
+
 func TestCreateUser_Success(t *testing.T) {
 	mockRepo := new(MockRepository)
 	s := New(mockRepo)
@@ -960,4 +968,52 @@ func TestGetLeaderboard_NoUsers(t *testing.T) {
 	mockRepo.AssertExpectations(t)
 	mockRepo.AssertNotCalled(t, "GetHabitsByUserIDs", ctx, mock.Anything)
 	mockRepo.AssertNotCalled(t, "GetLogsForHabits", ctx, mock.Anything)
+}
+
+// --- Explore Page Tests ---
+
+func TestGetExplorePage_Success(t *testing.T) {
+	mockRepo := new(MockRepository)
+	s := New(mockRepo)
+	ctx := context.Background()
+
+	// --- Test Data ---
+	user1ID := uuid.New()
+	habit1ID := uuid.New()
+
+	exploreItems := []domain.ExploreItem{
+		{
+			UserID:         user1ID,
+			Username:       "explorer1",
+			HabitID:        habit1ID,
+			HabitUserID:    user1ID,
+			HabitName:      "Explore Habit",
+			HabitColorHue:  120,
+			HabitCreatedAt: time.Now(),
+		},
+	}
+
+	logs := []domain.HabitLog{
+		{ID: uuid.New(), HabitID: habit1ID, Status: true},
+	}
+
+	// --- Mock Setup ---
+	mockRepo.On("GetExploreItems", ctx, 20).Return(exploreItems, nil)
+	mockRepo.On("GetLogsForHabits", ctx, []uuid.UUID{habit1ID}).Return(logs, nil)
+
+	// --- Call Service Method ---
+	result, err := s.GetExplorePage(ctx)
+
+	// --- Assertions ---
+	assert.NoError(t, err)
+	assert.Len(t, result, 1)
+
+	entry := result[0]
+	assert.Equal(t, user1ID, entry.User.ID)
+	assert.Equal(t, "explorer1", entry.User.Username)
+	assert.Equal(t, habit1ID, entry.Habit.ID)
+	assert.Equal(t, "Explore Habit", entry.Habit.Name)
+	assert.Len(t, entry.Habit.Logs, 1)
+
+	mockRepo.AssertExpectations(t)
 }

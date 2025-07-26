@@ -359,3 +359,42 @@ func (r *PostgresRepository) GetLeaderboardRanks(ctx context.Context, limit int)
 	}
 	return ranks, nil
 }
+
+func (r *PostgresRepository) GetExploreItems(ctx context.Context, limit int) ([]domain.ExploreItem, error) {
+	query := `
+		WITH LatestUserLogs AS (
+			SELECT DISTINCT ON (h.user_id)
+				h.user_id,
+				hl.habit_id
+			FROM habit_logs hl
+			JOIN habits h ON hl.habit_id = h.id
+			WHERE hl.status = TRUE
+			ORDER BY h.user_id, hl.log_date DESC, hl.updated_at DESC
+		)
+		SELECT
+			u.id AS user_id,
+			u.username,
+			u.avatar_url,
+			h.id AS habit_id,
+			h.user_id AS habit_user_id,
+			h.name AS habit_name,
+			h.color_hue AS habit_color_hue,
+			h.created_at AS habit_created_at
+		FROM LatestUserLogs lul
+		JOIN users u ON lul.user_id = u.id
+		JOIN habits h ON lul.habit_id = h.id
+		ORDER BY random()
+		LIMIT $1`
+
+	rows, err := r.db.Query(ctx, query, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	items, err := pgx.CollectRows(rows, pgx.RowToStructByName[domain.ExploreItem])
+	if err != nil {
+		return nil, err
+	}
+	return items, nil
+}
