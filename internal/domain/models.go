@@ -26,6 +26,7 @@ type Habit struct {
 	UserID    uuid.UUID `json:"userId"`
 	Name      string    `json:"name"`
 	ColorHue  int       `json:"colorHue"`
+	IsBoolean bool      `json:"isBoolean"`
 	CreatedAt time.Time `json:"createdAt"`
 }
 
@@ -33,7 +34,7 @@ type HabitLog struct {
 	ID        uuid.UUID `json:"id"`
 	HabitID   uuid.UUID `json:"habitId"`
 	LogDate   time.Time `json:"date"`
-	Status    bool      `json:"status"`
+	Value     int       `json:"value"`
 	CreatedAt time.Time `json:"createdAt"`
 	UpdatedAt time.Time `json:"updatedAt"`
 }

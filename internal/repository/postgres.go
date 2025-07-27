@@ -137,12 +137,12 @@ func (r *PostgresRepository) UpdateUserAvatar(ctx context.Context, userID uuid.U
 }
 
 func (r *PostgresRepository) CreateHabit(ctx context.Context, habit *domain.Habit) error {
-	query := `INSERT INTO habits (id, user_id, name, color_hue) VALUES ($1, $2, $3, $4) RETURNING created_at`
-	return r.db.QueryRow(ctx, query, habit.ID, habit.UserID, habit.Name, habit.ColorHue).Scan(&habit.CreatedAt)
+	query := `INSERT INTO habits (id, user_id, name, color_hue, is_boolean) VALUES ($1, $2, $3, $4, $5) RETURNING created_at`
+	return r.db.QueryRow(ctx, query, habit.ID, habit.UserID, habit.Name, habit.ColorHue, habit.IsBoolean).Scan(&habit.CreatedAt)
 }
 
 func (r *PostgresRepository) GetHabitsByUserID(ctx context.Context, userID uuid.UUID) ([]domain.Habit, error) {
-	query := `SELECT id, user_id, name, color_hue, created_at FROM habits WHERE user_id = $1 ORDER BY created_at DESC`
+	query := `SELECT id, user_id, name, color_hue, is_boolean, created_at FROM habits WHERE user_id = $1 ORDER BY created_at DESC`
 	rows, err := r.db.Query(ctx, query, userID)
 	if err != nil {
 		return nil, err
@@ -157,9 +157,9 @@ func (r *PostgresRepository) GetHabitsByUserID(ctx context.Context, userID uuid.
 }
 
 func (r *PostgresRepository) GetHabitByID(ctx context.Context, habitID uuid.UUID) (*domain.Habit, error) {
-	query := `SELECT id, user_id, name, color_hue, created_at FROM habits WHERE id = $1`
+	query := `SELECT id, user_id, name, color_hue, is_boolean, created_at FROM habits WHERE id = $1`
 	var habit domain.Habit
-	err := r.db.QueryRow(ctx, query, habitID).Scan(&habit.ID, &habit.UserID, &habit.Name, &habit.ColorHue, &habit.CreatedAt)
+	err := r.db.QueryRow(ctx, query, habitID).Scan(&habit.ID, &habit.UserID, &habit.Name, &habit.ColorHue, &habit.IsBoolean, &habit.CreatedAt)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, ErrHabitNotFound
@@ -195,12 +195,12 @@ func (r *PostgresRepository) DeleteHabit(ctx context.Context, habitID, userID uu
 
 func (r *PostgresRepository) UpsertHabitLog(ctx context.Context, log *domain.HabitLog) error {
 	query := `
-        INSERT INTO habit_logs (id, habit_id, log_date, status)
+        INSERT INTO habit_logs (id, habit_id, log_date, value)
         VALUES ($1, $2, $3, $4)
-        ON CONFLICT (habit_id, log_date) DO UPDATE SET status = EXCLUDED.status, updated_at = NOW()
+        ON CONFLICT (habit_id, log_date) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()
         RETURNING id, created_at, updated_at`
 
-	err := r.db.QueryRow(ctx, query, log.ID, log.HabitID, log.LogDate, log.Status).Scan(&log.ID, &log.CreatedAt, &log.UpdatedAt)
+	err := r.db.QueryRow(ctx, query, log.ID, log.HabitID, log.LogDate, log.Value).Scan(&log.ID, &log.CreatedAt, &log.UpdatedAt)
 	if err != nil {
 		return err
 	}
@@ -212,9 +212,9 @@ func (r *PostgresRepository) GetLogsForHabits(ctx context.Context, habitIDs []uu
 		return []domain.HabitLog{}, nil
 	}
 	query := `
-        SELECT id, habit_id, log_date, status, created_at, updated_at
+        SELECT id, habit_id, log_date, value, created_at, updated_at
         FROM habit_logs
-        WHERE habit_id = ANY($1) AND status = TRUE
+        WHERE habit_id = ANY($1) AND value > 0
         ORDER BY habit_id, log_date ASC`
 
 	rows, err := r.db.Query(ctx, query, habitIDs)
@@ -311,7 +311,7 @@ WITH RankedUsers AS (
         u.id,
         u.username,
         u.avatar_url,
-        COUNT(hl.id) as total_logged_days
+        SUM(hl.value) as total_logged_days
     FROM
         users u
     JOIN
@@ -319,7 +319,7 @@ WITH RankedUsers AS (
     JOIN
         habit_logs hl ON h.id = hl.habit_id
     WHERE
-        hl.status = TRUE
+        hl.value > 0 AND h.is_boolean = TRUE
     GROUP BY
         u.id
     ORDER BY
@@ -335,6 +335,7 @@ HabitsWithLogs AS (
                 'userId', h.user_id,
                 'name', h.name,
                 'colorHue', h.color_hue,
+                'isBoolean', h.is_boolean,
                 'createdAt', to_jsonb(h.created_at),
                 'logs', COALESCE(
                     (SELECT json_agg(
@@ -342,11 +343,11 @@ HabitsWithLogs AS (
                             'id', hl.id,
                             'habitId', hl.habit_id,
                             'date', to_jsonb(hl.log_date::timestamp AT TIME ZONE 'UTC'),
-                            'status', hl.status,
+                            'value', hl.value,
                             'createdAt', to_jsonb(hl.created_at),
                             'updatedAt', to_jsonb(hl.updated_at)
                         ) ORDER BY hl.log_date ASC
-                    ) FROM habit_logs hl WHERE hl.habit_id = h.id AND hl.status = TRUE),
+                    ) FROM habit_logs hl WHERE hl.habit_id = h.id AND hl.value > 0),
                     '[]'::json
                 )
             )
@@ -399,7 +400,7 @@ WITH LatestUserLogs AS (
         hl.updated_at
     FROM habit_logs hl
     JOIN habits h ON hl.habit_id = h.id
-    WHERE hl.status = TRUE
+    WHERE hl.value > 0
     ORDER BY h.user_id, hl.updated_at DESC
 ),
 ExploreHabits AS (
@@ -408,6 +409,7 @@ ExploreHabits AS (
         h.id,
         h.name,
         h.color_hue,
+        h.is_boolean,
         h.created_at,
         COALESCE(
             (SELECT json_agg(
@@ -415,11 +417,11 @@ ExploreHabits AS (
                     'id', hl.id,
                     'habitId', hl.habit_id,
                     'date', to_jsonb(hl.log_date::timestamp AT TIME ZONE 'UTC'),
-                    'status', hl.status,
+                    'value', hl.value,
                     'createdAt', to_jsonb(hl.created_at),
                     'updatedAt', to_jsonb(hl.updated_at)
                 ) ORDER BY hl.log_date ASC
-            ) FROM habit_logs hl WHERE hl.habit_id = h.id AND hl.status = TRUE),
+            ) FROM habit_logs hl WHERE hl.habit_id = h.id AND hl.value > 0),
             '[]'::json
         ) AS logs
     FROM LatestUserLogs lul
@@ -434,6 +436,7 @@ SELECT json_build_object(
         'userId', eh.user_id,
         'name', eh.name,
         'colorHue', eh.color_hue,
+        'isBoolean', eh.is_boolean,
         'createdAt', to_jsonb(eh.created_at),
         'logs', eh.logs
     )

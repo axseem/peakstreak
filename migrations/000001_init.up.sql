@@ -12,6 +12,7 @@ CREATE TABLE IF NOT EXISTS habits (
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     name VARCHAR(100) NOT NULL,
     color_hue SMALLINT NOT NULL DEFAULT 0,
+    is_boolean BOOLEAN NOT NULL DEFAULT TRUE,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
@@ -19,7 +20,7 @@ CREATE TABLE IF NOT EXISTS habit_logs (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     habit_id UUID NOT NULL REFERENCES habits(id) ON DELETE CASCADE,
     log_date DATE NOT NULL,
-    status BOOLEAN NOT NULL,
+    value INTEGER NOT NULL DEFAULT 0,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     UNIQUE (habit_id, log_date)

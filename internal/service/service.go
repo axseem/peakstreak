@@ -217,16 +217,18 @@ func (s *Service) GetProfileData(ctx context.Context, username string, authentic
 }
 
 type CreateHabitParams struct {
-	Name     string
-	ColorHue int
+	Name      string
+	ColorHue  int
+	IsBoolean bool
 }
 
 func (s *Service) CreateHabit(ctx context.Context, params CreateHabitParams, userID uuid.UUID) (*domain.Habit, error) {
 	habit := &domain.Habit{
-		ID:       uuid.New(),
-		UserID:   userID,
-		Name:     params.Name,
-		ColorHue: params.ColorHue,
+		ID:        uuid.New(),
+		UserID:    userID,
+		Name:      params.Name,
+		ColorHue:  params.ColorHue,
+		IsBoolean: params.IsBoolean,
 	}
 
 	if err := s.repo.CreateHabit(ctx, habit); err != nil {
@@ -314,7 +316,7 @@ func (s *Service) GetAllHabitsWithLogs(ctx context.Context, userID uuid.UUID) ([
 type LogHabitParams struct {
 	HabitID uuid.UUID
 	Date    time.Time
-	Status  bool
+	Value   int
 }
 
 func (s *Service) LogHabit(ctx context.Context, params LogHabitParams, userID uuid.UUID) (*domain.HabitLog, error) {
@@ -330,7 +332,7 @@ func (s *Service) LogHabit(ctx context.Context, params LogHabitParams, userID uu
 		ID:      uuid.New(),
 		HabitID: params.HabitID,
 		LogDate: params.Date,
-		Status:  params.Status,
+		Value:   params.Value,
 	}
 
 	if err := s.repo.UpsertHabitLog(ctx, log); err != nil {

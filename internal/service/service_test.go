@@ -266,6 +266,123 @@ func TestLoginUser_InvalidPassword(t *testing.T) {
 	mockRepo.AssertExpectations(t)
 }
 
+func TestCreateHabit_Integer(t *testing.T) {
+	mockRepo := new(MockRepository)
+	mockStorage := new(MockStorage)
+	s := New(mockRepo, mockStorage)
+	ctx := context.Background()
+
+	userID := uuid.New()
+	params := CreateHabitParams{
+		Name:      "Drink Water",
+		ColorHue:  210,
+		IsBoolean: false,
+	}
+
+	mockRepo.On("CreateHabit", ctx, mock.MatchedBy(func(h *domain.Habit) bool {
+		return h.UserID == userID &&
+			h.Name == params.Name &&
+			h.ColorHue == params.ColorHue &&
+			!h.IsBoolean
+	})).Return(nil)
+
+	habit, err := s.CreateHabit(ctx, params, userID)
+
+	assert.NoError(t, err)
+	assert.NotNil(t, habit)
+	assert.Equal(t, params.Name, habit.Name)
+	assert.False(t, habit.IsBoolean)
+	mockRepo.AssertExpectations(t)
+}
+
+func TestLogHabit_Integer(t *testing.T) {
+	mockRepo := new(MockRepository)
+	mockStorage := new(MockStorage)
+	s := New(mockRepo, mockStorage)
+	ctx := context.Background()
+
+	userID := uuid.New()
+	habitID := uuid.New()
+	logDate := time.Now().Truncate(24 * time.Hour)
+
+	testHabit := &domain.Habit{ID: habitID, UserID: userID, IsBoolean: false}
+	params := LogHabitParams{
+		HabitID: habitID,
+		Date:    logDate,
+		Value:   5,
+	}
+
+	mockRepo.On("GetHabitByID", ctx, habitID).Return(testHabit, nil)
+	mockRepo.On("UpsertHabitLog", ctx, mock.MatchedBy(func(l *domain.HabitLog) bool {
+		return l.HabitID == habitID && l.Value == 5
+	})).Return(nil)
+
+	log, err := s.LogHabit(ctx, params, userID)
+
+	assert.NoError(t, err)
+	assert.NotNil(t, log)
+	assert.Equal(t, 5, log.Value)
+	mockRepo.AssertExpectations(t)
+}
+
+func TestLogHabit_Boolean(t *testing.T) {
+	mockRepo := new(MockRepository)
+	mockStorage := new(MockStorage)
+	s := New(mockRepo, mockStorage)
+	ctx := context.Background()
+
+	userID := uuid.New()
+	habitID := uuid.New()
+	logDate := time.Now().Truncate(24 * time.Hour)
+
+	testHabit := &domain.Habit{ID: habitID, UserID: userID, IsBoolean: true}
+	params := LogHabitParams{
+		HabitID: habitID,
+		Date:    logDate,
+		Value:   1,
+	}
+
+	mockRepo.On("GetHabitByID", ctx, habitID).Return(testHabit, nil)
+	mockRepo.On("UpsertHabitLog", ctx, mock.MatchedBy(func(l *domain.HabitLog) bool {
+		return l.HabitID == habitID && l.Value == 1
+	})).Return(nil)
+
+	log, err := s.LogHabit(ctx, params, userID)
+
+	assert.NoError(t, err)
+	assert.NotNil(t, log)
+	assert.Equal(t, 1, log.Value)
+	mockRepo.AssertExpectations(t)
+}
+
+func TestLogHabit_AccessDenied(t *testing.T) {
+	mockRepo := new(MockRepository)
+	mockStorage := new(MockStorage)
+	s := New(mockRepo, mockStorage)
+	ctx := context.Background()
+
+	ownerID := uuid.New()
+	attackerID := uuid.New()
+	habitID := uuid.New()
+	logDate := time.Now().Truncate(24 * time.Hour)
+
+	testHabit := &domain.Habit{ID: habitID, UserID: ownerID, IsBoolean: true}
+	params := LogHabitParams{
+		HabitID: habitID,
+		Date:    logDate,
+		Value:   1,
+	}
+
+	mockRepo.On("GetHabitByID", ctx, habitID).Return(testHabit, nil)
+
+	_, err := s.LogHabit(ctx, params, attackerID)
+
+	assert.Error(t, err)
+	assert.True(t, errors.Is(err, ErrUserAccessDenied))
+	mockRepo.AssertExpectations(t)
+	mockRepo.AssertNotCalled(t, "UpsertHabitLog", ctx, mock.Anything)
+}
+
 func TestUpdateHabit_Success(t *testing.T) {
 	mockRepo := new(MockRepository)
 	mockStorage := new(MockStorage)
@@ -274,7 +391,7 @@ func TestUpdateHabit_Success(t *testing.T) {
 
 	userID := uuid.New()
 	habitID := uuid.New()
-	testHabit := &domain.Habit{ID: habitID, UserID: userID, Name: "Old Name", ColorHue: 100}
+	testHabit := &domain.Habit{ID: habitID, UserID: userID, Name: "Old Name", ColorHue: 100, IsBoolean: true}
 	params := UpdateHabitParams{Name: "New Name", ColorHue: 200}
 
 	mockRepo.On("GetHabitByID", ctx, habitID).Return(testHabit, nil)
@@ -300,7 +417,7 @@ func TestUpdateHabit_AccessDenied(t *testing.T) {
 	ownerID := uuid.New()
 	attackerID := uuid.New()
 	habitID := uuid.New()
-	testHabit := &domain.Habit{ID: habitID, UserID: ownerID, Name: "Secret Habit"}
+	testHabit := &domain.Habit{ID: habitID, UserID: ownerID, Name: "Secret Habit", IsBoolean: true}
 	params := UpdateHabitParams{Name: "Pwned Habit"}
 
 	mockRepo.On("GetHabitByID", ctx, habitID).Return(testHabit, nil)
@@ -325,6 +442,7 @@ func TestGetProfileData_Visitor(t *testing.T) {
 
 	mockRepo.On("GetUserByUsername", ctx, "testuser").Return(testUser, nil)
 	mockRepo.On("GetHabitsByUserID", ctx, profileUserID).Return([]domain.Habit{}, nil)
+	// The call to GetLogsForHabits is removed as it's not expected when there are no habits.
 	mockRepo.On("GetFollowerCount", ctx, profileUserID).Return(10, nil)
 	mockRepo.On("GetFollowingCount", ctx, profileUserID).Return(5, nil)
 	mockRepo.On("IsFollowing", ctx, visitorID, profileUserID).Return(true, nil)
@@ -472,8 +590,6 @@ func TestDeleteHabit_AccessDenied(t *testing.T) {
 	attackerID := uuid.New()
 	habitID := uuid.New()
 
-	// The repo returns ErrHabitNotFound because the WHERE clause (id AND user_id) didn't match.
-	// This happens if the habit doesn't exist OR if it belongs to another user.
 	mockRepo.On("DeleteHabit", ctx, habitID, attackerID).Return(repository.ErrHabitNotFound)
 
 	err := s.DeleteHabit(ctx, habitID, attackerID)

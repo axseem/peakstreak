@@ -17,6 +17,7 @@ export const initialState: State = {
   error: null,
   newHabitName: "",
   newHabitColorHue: 180,
+  newHabitIsBoolean: true,
   isAddingHabit: false,
   isProfileMenuOpen: false,
   editingHabitId: null,
@@ -119,6 +120,11 @@ export const HandleColorInput = (state: State, event: Event): State => ({
   newHabitColorHue: parseInt((event.target as HTMLInputElement).value, 10),
 });
 
+export const HandleIsBooleanInput = (state: State, event: Event): State => ({
+  ...state,
+  newHabitIsBoolean: (event.target as HTMLInputElement).checked,
+});
+
 export const SetAuth = (state: State, { user, token }: { user: User, token: string }): [State, any] => {
   localStorage.setItem("peakstreak_user", JSON.stringify(user));
   localStorage.setItem("peakstreak_token", token);
@@ -148,6 +154,7 @@ export const AddHabit = (state: State, newHabit: HabitWithLogs): State => {
     isLoading: false,
     newHabitName: "",
     newHabitColorHue: 180,
+    newHabitIsBoolean: true,
     isAddingHabit: false,
     profileData: {
       ...state.profileData,
@@ -172,13 +179,13 @@ export const UpdateHabitLog = (state: State, { habitId, log }: { habitId: string
         let newLogs;
 
         if (existingLogIndex > -1) {
-          if (log.status) {
+          if (log.value > 0) {
             newLogs = [...h.logs];
             newLogs[existingLogIndex] = log;
           } else {
             newLogs = h.logs.filter(l => toYYYYMMDD(new Date(l.date)) !== logDate);
           }
-        } else if (log.status) {
+        } else if (log.value > 0) {
           newLogs = [...h.logs, log];
         } else {
           newLogs = h.logs;
@@ -235,6 +242,7 @@ export const HideAddHabitForm = (state: State): State => ({
   isAddingHabit: false,
   newHabitName: "",
   newHabitColorHue: 180,
+  newHabitIsBoolean: true,
 });
 
 export const ToggleProfileMenu = (state: State): State => ({
@@ -406,9 +414,9 @@ export const SignUpFx = (dispatch: any, { username, email, password }: any) => {
     .catch(err => dispatch(SetError, err.message));
 };
 
-export const CreateHabitFx = (dispatch: any, { name, colorHue, token }: { name: string, colorHue: number, token: string }) => {
+export const CreateHabitFx = (dispatch: any, { name, colorHue, isBoolean, token }: { name: string, colorHue: number, isBoolean: boolean, token: string }) => {
   dispatch(SetLoading, true);
-  api.post("/api/habit", { name, colorHue }, token)
+  api.post("/api/habit", { name, colorHue, isBoolean }, token)
     .then((newHabit) => {
       const newHabitWithLogs: HabitWithLogs = { ...newHabit, logs: [] };
       dispatch(AddHabit, newHabitWithLogs);
@@ -416,10 +424,9 @@ export const CreateHabitFx = (dispatch: any, { name, colorHue, token }: { name: 
     .catch(err => dispatch(SetError, err.message));
 };
 
-export const LogHabitFx = (dispatch: any, { habitId, token }: { habitId: string, token: string }) => {
-  const date = new Date().toISOString().split('T')[0];
+export const UpsertHabitLogFx = (dispatch: any, { habitId, date, value, token }: { habitId: string, date: string, value: number, token: string }) => {
   dispatch(SetLoading, true);
-  api.post(`/api/habit/${habitId}/log`, { date, status: true }, token)
+  api.post(`/api/habit/${habitId}/log`, { date, value }, token)
     .then((newLog) => dispatch(UpdateHabitLog, { habitId, log: newLog }))
     .catch(err => dispatch(SetError, err.message));
 };
@@ -435,14 +442,6 @@ export const DeleteHabitFx = (dispatch: any, { habitId, token }: { habitId: stri
   dispatch(SetLoading, true);
   api.delete(`/api/habit/${habitId}`, token)
     .then(() => dispatch(HabitDeleted, habitId))
-    .catch(err => dispatch(SetError, err.message));
-};
-
-export const ToggleHabitLogFx = (dispatch: any, { habitId, date, currentStatus, token }: { habitId: string, date: string, currentStatus: boolean, token: string }) => {
-  dispatch(SetLoading, true);
-  const newStatus = !currentStatus;
-  api.post(`/api/habit/${habitId}/log`, { date, status: newStatus }, token)
-    .then((newLog) => dispatch(UpdateHabitLog, { habitId, log: newLog }))
     .catch(err => dispatch(SetError, err.message));
 };
 

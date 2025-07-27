@@ -129,8 +129,9 @@ func (h *APIHandler) GetProfilePageData(w http.ResponseWriter, r *http.Request) 
 }
 
 type CreateHabitRequest struct {
-	Name     string `json:"name" validate:"required,min=1,max=100"`
-	ColorHue int    `json:"colorHue" validate:"min=0,max=360"`
+	Name      string `json:"name" validate:"required,min=1,max=100"`
+	ColorHue  int    `json:"colorHue" validate:"min=0,max=360"`
+	IsBoolean bool   `json:"isBoolean"`
 }
 
 func (h *APIHandler) CreateHabit(w http.ResponseWriter, r *http.Request) {
@@ -151,8 +152,9 @@ func (h *APIHandler) CreateHabit(w http.ResponseWriter, r *http.Request) {
 	}
 
 	params := service.CreateHabitParams{
-		Name:     req.Name,
-		ColorHue: req.ColorHue,
+		Name:      req.Name,
+		ColorHue:  req.ColorHue,
+		IsBoolean: req.IsBoolean,
 	}
 
 	habit, err := h.service.CreateHabit(r.Context(), params, userID)
@@ -245,8 +247,8 @@ func (h *APIHandler) DeleteHabit(w http.ResponseWriter, r *http.Request) {
 const DATE_FORMAT = "2006-01-02"
 
 type LogHabitRequest struct {
-	Date   string `json:"date" validate:"required"`
-	Status bool   `json:"status"`
+	Date  string `json:"date" validate:"required"`
+	Value int    `json:"value" validate:"min=0"`
 }
 
 func (h *APIHandler) LogHabit(w http.ResponseWriter, r *http.Request) {
@@ -282,7 +284,7 @@ func (h *APIHandler) LogHabit(w http.ResponseWriter, r *http.Request) {
 	params := service.LogHabitParams{
 		HabitID: habitID,
 		Date:    logDate,
-		Status:  req.Status,
+		Value:   req.Value,
 	}
 
 	log, err := h.service.LogHabit(r.Context(), params, userID)

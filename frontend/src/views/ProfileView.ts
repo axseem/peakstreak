@@ -3,6 +3,7 @@ import type { State } from "../types";
 import {
   HandleFormInput,
   HandleColorInput,
+  HandleIsBooleanInput,
   CreateHabitFx,
   ShowAddHabitForm,
   HideAddHabitForm,
@@ -22,7 +23,7 @@ const InlineCreateHabitForm = (state: State): VNode<State> => h("form", {
   onsubmit: (s: State, event: Event) => {
     event.preventDefault();
     if (s.newHabitName.trim() && s.token) {
-      return [s, [CreateHabitFx, { name: s.newHabitName, colorHue: s.newHabitColorHue, token: s.token }]];
+      return [s, [CreateHabitFx, { name: s.newHabitName, colorHue: s.newHabitColorHue, isBoolean: s.newHabitIsBoolean, token: s.token }]];
     }
     return s;
   },
@@ -48,6 +49,16 @@ const InlineCreateHabitForm = (state: State): VNode<State> => h("form", {
     disabled: state.isLoading,
     class: "w-full text-center"
   }),
+  h("div", { class: "flex items-center self-start gap-2 text-neutral-400 mt-2" }, [
+    h("input", {
+      type: "checkbox",
+      id: "newHabitIsBoolean",
+      class: "w-4 h-4 rounded bg-neutral-700 border-neutral-600 text-blue-500 focus:ring-blue-600",
+      checked: state.newHabitIsBoolean,
+      oninput: HandleIsBooleanInput,
+    }),
+    h("label", { for: "newHabitIsBoolean" }, text("Simple (Yes/No) habit")),
+  ]),
   h("div", { class: "flex gap-2 w-full mt-4" }, [
     Button({
       type: "button",

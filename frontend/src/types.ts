@@ -16,6 +16,7 @@ export type Habit = {
   userId: string;
   name: string;
   colorHue: number;
+  isBoolean: boolean;
   createdAt: string;
 };
 
@@ -23,7 +24,7 @@ export type HabitLog = {
   id: string;
   habitId: string;
   date: string;
-  status: boolean;
+  value: number;
 };
 
 export type HabitWithLogs = Habit & {
@@ -87,6 +88,7 @@ export type State = {
   error: string | null;
   newHabitName: string;
   newHabitColorHue: number;
+  newHabitIsBoolean: boolean;
   isAddingHabit: boolean;
   isProfileMenuOpen: boolean;
   editingHabitId: string | null;

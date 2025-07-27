@@ -1,8 +1,8 @@
 import { h, text, type VNode, type Action } from "hyperapp";
-import type { State, HabitWithLogs, HabitLog } from "../types";
+import type { State, HabitWithLogs, HabitLog, Habit } from "../types";
 import {
   UpdateHabitFx,
-  ToggleHabitLogFx,
+  UpsertHabitLogFx,
   ToggleHabitMenu,
   CloseHabitMenu,
   SetEditingHabit,
@@ -217,8 +217,8 @@ const generateCalendarLayout = (year: number): YearLayout => {
   return { year, months, totalWidth, totalHeight };
 };
 
-const CalendarGrid = ({ year, logs, isEditing, habitId, token, color }: { year: number, logs: HabitLog[], isEditing: boolean, habitId: string, token: string | null, color: Color }): VNode<State> | null => {
-  const logsMap = new Map(logs.map(log => [toYYYYMMDD(new Date(log.date)), log.status]));
+const CalendarGrid = ({ year, habit, logs, isEditing, token, color }: { year: number, habit: Habit, logs: HabitLog[], isEditing: boolean, token: string | null, color: Color }): VNode<State> | null => {
+  const logsMap = new Map(logs.map(log => [toYYYYMMDD(new Date(log.date)), log.value]));
   const layout = generateCalendarLayout(year);
   if (layout.months.length === 0) return null;
 
@@ -234,8 +234,10 @@ const CalendarGrid = ({ year, logs, isEditing, habitId, token, color }: { year: 
     ...layout.months.flatMap(month => month.cells.map(cell => {
       const { w, d, date } = cell;
       const dateStr = toYYYYMMDD(date);
-      const isLogged = logsMap.get(dateStr) === true;
+      const logValue = logsMap.get(dateStr) ?? 0;
+      const isLogged = logValue > 0;
       const canToggle = isEditing && new Date(new Date().setUTCHours(0, 0, 0, 0)) >= date;
+
       return h("div", {
         key: dateStr, class: `absolute rounded-sm ${canToggle ? 'cursor-pointer hover:opacity-75' : ''}`,
         style: {
@@ -244,10 +246,26 @@ const CalendarGrid = ({ year, logs, isEditing, habitId, token, color }: { year: 
           backgroundColor: isLogged ? HSLToString(color.cell) : "transparent",
           border: isLogged ? "none" : `1px solid ${HSLToString(color.cellBorder)}`,
         },
-        title: `${date.toDateString()}: ${isLogged ? 'Completed' : 'Not completed'}`,
+        title: habit.isBoolean
+          ? `${date.toDateString()}: ${isLogged ? 'Completed' : 'Not completed'}`
+          : `${date.toDateString()}: ${logValue}`,
         onclick: (state: State) => {
           if (!canToggle || !token) return state;
-          return [state, [ToggleHabitLogFx, { habitId, date: dateStr, currentStatus: isLogged, token }]];
+
+          if (habit.isBoolean) {
+            const newValue = isLogged ? 0 : 1;
+            return [state, [UpsertHabitLogFx, { habitId: habit.id, date: dateStr, value: newValue, token }]];
+          } else {
+            const rawValue = prompt(`Enter value for ${date.toDateString()}:`, String(logValue));
+            if (rawValue === null) return state; // User cancelled
+            const value = parseInt(rawValue, 10);
+            if (!isNaN(value) && value >= 0) {
+              return [state, [UpsertHabitLogFx, { habitId: habit.id, date: dateStr, value, token }]];
+            } else {
+              alert("Please enter a valid non-negative number.");
+              return state;
+            }
+          }
         }
       });
     })),
@@ -305,9 +323,8 @@ export const HabitCard = ({ habit, isOwner, token, isEditing, activeHabitMenuId 
   const color = getColor(habit.colorHue);
 
   const todayStr = toYYYYMMDD(new Date());
-  const wasLoggedToday = habit.logs.some(log =>
-    toYYYYMMDD(new Date(log.date)) === todayStr
-  );
+  const todayLog = habit.logs.find(log => toYYYYMMDD(new Date(log.date)) === todayStr);
+  const wasLoggedToday = !!todayLog && todayLog.value > 0;
 
   const logsByYear = groupLogsByYear(habit.logs);
   const years = Object.keys(logsByYear).map(Number).sort((a, b) => b - a);
@@ -373,14 +390,14 @@ export const HabitCard = ({ habit, isOwner, token, isEditing, activeHabitMenuId 
         : h<State>("h3", { class: "text-xl font-bold" }, text(habit.name)),
       isOwner && !isEditing && token
         ? h("div", { class: "flex items-center gap-2" }, [
-          h("button", {
+          habit.isBoolean && h("button", {
             class: `p-2 rounded-full transition-colors ${wasLoggedToday
               ? 'bg-white/20 text-white hover:bg-white/40 outline-2 outline-white/40 outline-offset-2'
               : 'bg-white/10 hover:bg-white/30 text-white/30 hover:text-white'
               }`,
             onclick: (state: State) => [
               state,
-              [ToggleHabitLogFx, { habitId: habit.id, date: todayStr, currentStatus: wasLoggedToday, token }]
+              [UpsertHabitLogFx, { habitId: habit.id, date: todayStr, value: wasLoggedToday ? 0 : 1, token }]
             ],
             title: wasLoggedToday ? "Mark as not done for today" : "Mark as done for today"
           }, h("svg", { class: "w-6 h-6", fill: "none", viewBox: "0 0 24 24", "stroke-width": "2", stroke: "currentColor" },
@@ -409,7 +426,7 @@ export const HabitCard = ({ habit, isOwner, token, isEditing, activeHabitMenuId 
         years.map(year =>
           h<State>("div", { key: String(year), class: "flex flex-col items-center gap-2 flex-shrink-0 px-8" }, [
             h<State>("div", { class: "font-bold", style: { color: HSLToString(color.text) } }, text(year)),
-            CalendarGrid({ year, logs: logsByYear[year] || [], isEditing, habitId: habit.id, token, color }),
+            CalendarGrid({ year, habit, logs: logsByYear[year] || [], isEditing, token, color }),
           ])
         )
       ),
