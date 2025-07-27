@@ -6,19 +6,16 @@ import {
   CreateHabitFx,
   ShowAddHabitForm,
   HideAddHabitForm,
-  ToggleEditMode,
   FollowUserFx,
   UnfollowUserFx,
   OpenFollowerList,
-  UploadAvatarFx
+  UploadAvatarFx,
 } from "../state";
 import { Input } from "../components/Input";
 import { Button } from "../components/Button";
 import { UserListPopup } from "../components/UserListPopup";
 import { Avatar } from "../components/Avatar";
 import { HabitCard } from "../components/HabitCard";
-
-
 
 const InlineCreateHabitForm = (state: State): VNode<State> => h("form", {
   class: "flex flex-col items-center justify-center gap-4 p-8 w-full h-full",
@@ -118,12 +115,6 @@ export const ProfileView = (state: State): VNode<State> => {
     disabled: state.isLoading,
   }, text(isFollowing ? "Following" : "Follow"));
 
-  const EditButton = () => Button({
-    onclick: ToggleEditMode,
-    class: "self-start"
-  }, text(state.isEditing ? "Done" : "Edit"));
-
-
   return h("div", { class: "flex flex-col gap-8 w-full" }, [
     isOwner && h("input", {
       id: "avatar-upload",
@@ -166,9 +157,7 @@ export const ProfileView = (state: State): VNode<State> => {
           ]),
         ]),
       ]),
-      isOwner
-        ? (habits.length > 0 && EditButton())
-        : FollowButton()
+      !isOwner && FollowButton()
     ]),
 
     h("div", { class: "flex flex-col gap-4" }, [
@@ -176,9 +165,15 @@ export const ProfileView = (state: State): VNode<State> => {
         h("h2", { class: "text-2xl font-bold" }, text("Habits")),
       ]),
       h("div", { class: "flex flex-col gap-8" }, [
-        ...habits.map(habit => HabitCard(habit, isOwner, state.token, state.isEditing)),
+        ...habits.map(habit => HabitCard({
+          habit,
+          isOwner,
+          token: state.token,
+          isEditing: state.editingHabitId === habit.id,
+          activeHabitMenuId: state.activeHabitMenuId
+        })),
 
-        isOwner && !state.isEditing ? AddHabitCard(state) : null,
+        isOwner && !state.editingHabitId ? AddHabitCard(state) : null,
 
         habits.length === 0 && !isOwner
           ? h("p", { class: "text-neutral-400" }, text("This user hasn't added any habits yet."))

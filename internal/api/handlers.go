@@ -215,6 +215,33 @@ func (h *APIHandler) UpdateHabit(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+func (h *APIHandler) DeleteHabit(w http.ResponseWriter, r *http.Request) {
+	habitIDStr := chi.URLParam(r, "habitId")
+	habitID, err := uuid.Parse(habitIDStr)
+	if err != nil {
+		errorResponse(w, http.StatusBadRequest, "Invalid habit ID format")
+		return
+	}
+
+	userID, ok := getUserIDFromContext(r.Context())
+	if !ok {
+		errorResponse(w, http.StatusUnauthorized, "Authentication error")
+		return
+	}
+
+	err = h.service.DeleteHabit(r.Context(), habitID, userID)
+	if err != nil {
+		if errors.Is(err, service.ErrUserAccessDenied) {
+			errorResponse(w, http.StatusForbidden, "You do not have permission to delete this habit")
+		} else {
+			errorResponse(w, http.StatusInternalServerError, "Failed to delete habit")
+		}
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
 const DATE_FORMAT = "2006-01-02"
 
 type LogHabitRequest struct {

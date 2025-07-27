@@ -260,6 +260,17 @@ func (s *Service) UpdateHabit(ctx context.Context, params UpdateHabitParams, hab
 	return habit, nil
 }
 
+func (s *Service) DeleteHabit(ctx context.Context, habitID, userID uuid.UUID) error {
+	err := s.repo.DeleteHabit(ctx, habitID, userID)
+	if err != nil {
+		if errors.Is(err, repository.ErrHabitNotFound) {
+			return ErrUserAccessDenied
+		}
+		return err
+	}
+	return nil
+}
+
 func (s *Service) GetAllHabitsWithLogs(ctx context.Context, userID uuid.UUID) ([]domain.HabitWithLogs, error) {
 	habits, err := s.repo.GetHabitsByUserID(ctx, userID)
 	if err != nil {

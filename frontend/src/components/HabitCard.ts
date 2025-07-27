@@ -1,8 +1,16 @@
 import { h, text, type VNode, type Action } from "hyperapp";
 import type { State, HabitWithLogs, HabitLog } from "../types";
-import { LogHabitFx, UpdateHabitFx, ToggleHabitLogFx } from "../state";
+import {
+  UpdateHabitFx,
+  ToggleHabitLogFx,
+  ToggleHabitMenu,
+  CloseHabitMenu,
+  SetEditingHabit,
+  DeleteHabitFx,
+} from "../state";
 import { toYYYYMMDD, getDatesForYear, groupLogsByYear } from "../lib/date";
-import { Button } from "../components/Button";
+import { Popup } from "./Popup";
+import { twMerge } from "tailwind-merge";
 
 type HSL = { hue: number; saturation: number; lightness: number };
 type Color = { background: HSL; monthBackground: HSL; cellBorder: HSL; cell: HSL; text: HSL };
@@ -88,13 +96,22 @@ const createBlobPath = (polygon: Point[], options: { padding: number; radius: nu
   const getPixelPos = (p: Point) => ({ x: p.x * STEP - CELL_GAP / 2 - offsetX, y: p.y * STEP - CELL_GAP / 2 - offsetY });
   const pathPoints: { p_before: Point; p_after: Point; sweepFlag: number; radius: number }[] = [];
   for (let i = 0; i < len; i++) {
-    const p_prev = polygon[(i + len - 1) % len]; const p_curr = polygon[i]; const p_next = polygon[(i + 1) % len];
-    const pos_curr = getPixelPos(p_curr); const pos_prev = getPixelPos(p_prev); const pos_next = getPixelPos(p_next);
-    const v_in = { x: pos_curr.x - pos_prev.x, y: pos_curr.y - pos_prev.y }; const v_out = { x: pos_next.x - pos_curr.x, y: pos_next.y - pos_curr.y };
-    const len_in = Math.sqrt(v_in.x ** 2 + v_in.y ** 2); const v_in_n = { x: v_in.x / len_in, y: v_in.y / len_in };
-    const len_out = Math.sqrt(v_out.x ** 2 + v_out.y ** 2); const v_out_n = { x: v_out.x / len_out, y: v_out.y / len_out };
-    const v_in_p = { x: -v_in_n.y, y: v_in_n.x }; const v_out_p = { x: -v_out_n.y, y: v_out_n.x };
-    const cross_z = v_in_n.x * v_out_n.y - v_in_n.y * v_out_n.x; const isOuter = cross_z > 0; const sweepFlag = isOuter ? 1 : 0;
+    const p_prev = polygon[(i + len - 1) % len];
+    const p_curr = polygon[i]; const p_next = polygon[(i + 1) % len];
+    const pos_curr = getPixelPos(p_curr);
+    const pos_prev = getPixelPos(p_prev);
+    const pos_next = getPixelPos(p_next);
+    const v_in = { x: pos_curr.x - pos_prev.x, y: pos_curr.y - pos_prev.y };
+    const v_out = { x: pos_next.x - pos_curr.x, y: pos_next.y - pos_curr.y };
+    const len_in = Math.sqrt(v_in.x ** 2 + v_in.y ** 2);
+    const v_in_n = { x: v_in.x / len_in, y: v_in.y / len_in };
+    const len_out = Math.sqrt(v_out.x ** 2 + v_out.y ** 2);
+    const v_out_n = { x: v_out.x / len_out, y: v_out.y / len_out };
+    const v_in_p = { x: -v_in_n.y, y: v_in_n.x };
+    const v_out_p = { x: -v_out_n.y, y: v_out_n.x };
+    const cross_z = v_in_n.x * v_out_n.y - v_in_n.y * v_out_n.x;
+    const isOuter = cross_z > 0;
+    const sweepFlag = isOuter ? 1 : 0;
     const cornerRadius = isOuter ? radius : radius + BLOB_PADDING * 2;
     const t_before = { x: pos_curr.x - v_in_n.x * cornerRadius, y: pos_curr.y - v_in_n.y * cornerRadius };
     const t_after = { x: pos_curr.x + v_out_n.x * cornerRadius, y: pos_curr.y + v_out_n.y * cornerRadius };
@@ -239,12 +256,54 @@ const CalendarGrid = ({ year, logs, isEditing, habitId, token, color }: { year: 
   ]);
 };
 
+const HabitMenu = ({ habit, token }: { habit: HabitWithLogs, token: string | null }): VNode<State> => {
+  const MenuItem = (props: { onclick: any, class?: string, confirmation?: string }, children: any) =>
+    h("button", {
+      class: twMerge("w-full text-left px-4 py-2 text-sm hover:bg-neutral-800 flex items-center gap-3 transition-colors rounded-md", props.class),
+      onclick: (state: State) => {
+        if (props.confirmation && !window.confirm(props.confirmation)) {
+          return CloseHabitMenu(state);
+        }
+        return props.onclick(state);
+      }
+    }, children);
 
-export const HabitCard = (habit: HabitWithLogs, isOwner: boolean, token: string | null, isEditing: boolean): VNode<State> => {
+  return h("div", { class: "p-1" }, [
+    MenuItem({
+      onclick: (state: State) => SetEditingHabit(state, habit.id)
+    }, [
+      h("svg", { class: "w-4 h-4", fill: "none", viewBox: "0 0 24 24", "stroke-width": "1.5", stroke: "currentColor" },
+        h("path", { "stroke-linecap": "round", "stroke-linejoin": "round", d: "M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" })
+      ),
+      text("Edit")
+    ]),
+    MenuItem({
+      onclick: (state: State) => [CloseHabitMenu(state), [DeleteHabitFx, { habitId: habit.id, token }]],
+      class: "text-red-400 hover:bg-red-500/10",
+      confirmation: `Are you sure you want to delete the habit "${habit.name}"? This action cannot be undone.`
+    }, [
+      h("svg", { class: "w-4 h-4", fill: "none", viewBox: "0 0 24 24", "stroke-width": "1.5", stroke: "currentColor" },
+        h("path", { "stroke-linecap": "round", "stroke-linejoin": "round", d: "M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.134-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.067-2.09.92-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" })
+      ),
+      text("Delete")
+    ]),
+  ]);
+};
+
+type HabitCardProps = {
+  habit: HabitWithLogs;
+  isOwner: boolean;
+  token: string | null;
+  isEditing: boolean;
+  activeHabitMenuId: string | null;
+};
+
+export const HabitCard = ({ habit, isOwner, token, isEditing, activeHabitMenuId }: HabitCardProps): VNode<State> => {
   const color = getColor(habit.colorHue);
 
+  const todayStr = toYYYYMMDD(new Date());
   const wasLoggedToday = habit.logs.some(log =>
-    new Date(log.date).setUTCHours(0, 0, 0, 0) === new Date().setUTCHours(0, 0, 0, 0)
+    toYYYYMMDD(new Date(log.date)) === todayStr
   );
 
   const logsByYear = groupLogsByYear(habit.logs);
@@ -310,12 +369,35 @@ export const HabitCard = (habit: HabitWithLogs, isOwner: boolean, token: string 
         ])
         : h<State>("h3", { class: "text-xl font-bold" }, text(habit.name)),
       isOwner && !isEditing && token
-        ? Button({
-          disabled: wasLoggedToday,
-          onclick: (state: State) => [state, [LogHabitFx, { habitId: habit.id, token: state.token! }]],
-          class: "text-xs",
-          style: { backgroundColor: HSLToString(color.text) }
-        }, text(wasLoggedToday ? "Completed!" : "Log Today"))
+        ? h("div", { class: "flex items-center gap-2" }, [
+          h("button", {
+            class: `p-2 rounded-full transition-colors ${wasLoggedToday
+              ? 'bg-white/20 text-white hover:bg-white/40 outline-2 outline-white/40 outline-offset-2'
+              : 'bg-white/10 hover:bg-white/30 text-white/30 hover:text-white'
+              }`,
+            onclick: (state: State) => [
+              state,
+              [ToggleHabitLogFx, { habitId: habit.id, date: todayStr, currentStatus: wasLoggedToday, token }]
+            ],
+            title: wasLoggedToday ? "Mark as not done for today" : "Mark as done for today"
+          }, h("svg", { class: "w-6 h-6", fill: "none", viewBox: "0 0 24 24", "stroke-width": "2", stroke: "currentColor" },
+            h("path", { "stroke-linecap": "round", "stroke-linejoin": "round", d: "M5 13l4 4L19 7" })
+          )),
+
+          h("div", { class: "relative" }, [
+            h("button", {
+              class: "p-2 rounded-full hover:bg-white/20 text-white hover:text-white transition-colors",
+              onclick: [ToggleHabitMenu, habit.id]
+            }, h("svg", { class: "w-6 h-6", xmlns: "http://www.w3.org/2000/svg", fill: "none", viewBox: "0 0 24 24", "stroke-width": "1.5", stroke: "currentColor" },
+              h("path", { "stroke-linecap": "round", "stroke-linejoin": "round", d: "M12 6.75a.75.75 0 110-1.5.75.75 0 010 1.5zM12 12.75a.75.75 0 110-1.5.75.75 0 010 1.5zM12 18.75a.75.75 0 110-1.5.75.75 0 010 1.5z" })
+            )),
+            Popup({
+              isOpen: activeHabitMenuId === habit.id,
+              onClose: CloseHabitMenu,
+              class: "top-full right-0 mt-2 w-48"
+            }, HabitMenu({ habit, token }))
+          ])
+        ])
         : null
     ]),
 

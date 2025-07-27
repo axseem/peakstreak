@@ -19,7 +19,8 @@ export const initialState: State = {
   newHabitColorHue: 180,
   isAddingHabit: false,
   isProfileMenuOpen: false,
-  isEditing: false,
+  editingHabitId: null,
+  activeHabitMenuId: null,
   followerList: {
     isOpen: false,
     type: null,
@@ -49,49 +50,49 @@ export const initialState: State = {
 // --- Actions (Synchronous State Updaters) ---
 
 export const SetView = (state: State, { view, username }: { view: State["view"], username?: string }): [State, any] | State => {
+  const baseState = {
+    ...state,
+    view,
+    error: null,
+    editingHabitId: null,
+    activeHabitMenuId: null
+  };
+
   if (view === "home") {
     if (state.token && state.user) {
-      return [state, [NavigateFx, { path: `/@${state.user.username}`, replace: true }]];
+      return [baseState, [NavigateFx, { path: `/@${state.user.username}`, replace: true }]];
     }
-    return [state, [NavigateFx, { path: "/login", replace: true }]];
+    return [baseState, [NavigateFx, { path: "/login", replace: true }]];
   }
 
   const authRequiredViews: State["view"][] = [];
   if (authRequiredViews.includes(view) && !state.token) {
-    return [state, [NavigateFx, { path: "/login", replace: true }]];
+    return [baseState, [NavigateFx, { path: "/login", replace: true }]];
   }
 
   if (view === "explore") {
-    const newState = { ...state, view, error: null, isEditing: false, explore: { ...state.explore, isLoading: true, error: null } };
+    const newState = { ...baseState, explore: { ...state.explore, isLoading: true, error: null } };
     return [newState, [FetchExploreDataFx, {}]];
   }
 
   if (view === "leaderboard") {
-    const newState = { ...state, view, error: null, isEditing: false, leaderboard: { ...state.leaderboard, isLoading: true, error: null } };
+    const newState = { ...baseState, leaderboard: { ...state.leaderboard, isLoading: true, error: null } };
     return [newState, [FetchLeaderboardFx, {}]];
   }
 
-  // Handle search view separately to manage its own loading state
   if (view === "search") {
     const urlParams = new URLSearchParams(window.location.search);
     const query = urlParams.get('q') || "";
-    const searchState: SearchState = {
-      query,
-      isLoading: true,
-      error: null,
-      results: []
-    };
-    const newState = { ...state, view, error: null, isEditing: false, search: searchState };
+    const searchState: SearchState = { query, isLoading: true, error: null, results: [] };
+    const newState = { ...baseState, search: searchState };
 
     if (query.length >= 3) {
       return [newState, [SearchUsersFx, { query }]];
     }
-
-    // If query is too short, just update state without effect
     return { ...newState, search: { ...searchState, isLoading: false } };
   }
 
-  const newState = { ...state, view, error: null, isLoading: true, isEditing: false };
+  const newState = { ...baseState, isLoading: true };
 
   if (view === "profile" && username) {
     return [newState, [FetchProfileFx, { username, token: state.token }]];
@@ -99,6 +100,7 @@ export const SetView = (state: State, { view, username }: { view: State["view"],
 
   return { ...newState, isLoading: false };
 };
+
 
 export const SetError = (state: State, error: string | null): State => {
   console.error("error: " + error);
@@ -149,7 +151,7 @@ export const AddHabit = (state: State, newHabit: HabitWithLogs): State => {
     isAddingHabit: false,
     profileData: {
       ...state.profileData,
-      habits: [newHabit, ...state.profileData.habits]
+      habits: [...state.profileData.habits, newHabit]
     }
   };
 };
@@ -193,6 +195,7 @@ export const UpdateHabit = (state: State, { habitId, name, colorHue }: { habitId
   return {
     ...state,
     isLoading: false,
+    editingHabitId: null,
     profileData: {
       ...state.profileData,
       habits: state.profileData.habits.map(h =>
@@ -201,6 +204,19 @@ export const UpdateHabit = (state: State, { habitId, name, colorHue }: { habitId
     }
   };
 };
+
+export const HabitDeleted = (state: State, habitId: string): State => {
+  if (!state.profileData) return state;
+  return {
+    ...state,
+    isLoading: false,
+    profileData: {
+      ...state.profileData,
+      habits: state.profileData.habits.filter(h => h.id !== habitId)
+    }
+  };
+};
+
 
 export const Logout = (_state: State): [State, any] => {
   localStorage.removeItem("peakstreak_user");
@@ -231,9 +247,20 @@ export const CloseProfileMenu = (state: State): State => ({
   isProfileMenuOpen: false,
 });
 
-export const ToggleEditMode = (state: State): State => ({
+export const ToggleHabitMenu = (state: State, habitId: string): State => ({
   ...state,
-  isEditing: !state.isEditing,
+  activeHabitMenuId: state.activeHabitMenuId === habitId ? null : habitId,
+});
+
+export const CloseHabitMenu = (state: State): State => ({
+  ...state,
+  activeHabitMenuId: null,
+});
+
+export const SetEditingHabit = (state: State, habitId: string | null): State => ({
+  ...state,
+  editingHabitId: habitId,
+  activeHabitMenuId: null, // Close menu when starting to edit
 });
 
 export const SetFollowingStatus = (state: State, { isFollowing }: { isFollowing: boolean }): State => {
@@ -401,6 +428,13 @@ export const UpdateHabitFx = (dispatch: any, { habitId, name, colorHue, token }:
   dispatch(SetLoading, true);
   api.put(`/api/habit/${habitId}`, { name, colorHue }, token)
     .then(() => dispatch(UpdateHabit, { habitId, name, colorHue }))
+    .catch(err => dispatch(SetError, err.message));
+};
+
+export const DeleteHabitFx = (dispatch: any, { habitId, token }: { habitId: string, token: string }) => {
+  dispatch(SetLoading, true);
+  api.delete(`/api/habit/${habitId}`, token)
+    .then(() => dispatch(HabitDeleted, habitId))
     .catch(err => dispatch(SetError, err.message));
 };
 

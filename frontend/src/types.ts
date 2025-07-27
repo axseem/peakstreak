@@ -89,7 +89,8 @@ export type State = {
   newHabitColorHue: number;
   isAddingHabit: boolean;
   isProfileMenuOpen: boolean;
-  isEditing: boolean;
+  editingHabitId: string | null;
+  activeHabitMenuId: string | null;
   followerList: FollowerListState;
   search: SearchState;
   leaderboard: LeaderboardState;

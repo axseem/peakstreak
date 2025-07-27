@@ -181,6 +181,18 @@ func (r *PostgresRepository) UpdateHabit(ctx context.Context, habit *domain.Habi
 	return nil
 }
 
+func (r *PostgresRepository) DeleteHabit(ctx context.Context, habitID, userID uuid.UUID) error {
+	query := `DELETE FROM habits WHERE id = $1 AND user_id = $2`
+	tag, err := r.db.Exec(ctx, query, habitID, userID)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrHabitNotFound
+	}
+	return nil
+}
+
 func (r *PostgresRepository) UpsertHabitLog(ctx context.Context, log *domain.HabitLog) error {
 	query := `
         INSERT INTO habit_logs (id, habit_id, log_date, status)

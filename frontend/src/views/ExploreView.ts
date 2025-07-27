@@ -4,7 +4,7 @@ import { HabitCard } from "../components/HabitCard";
 import { Avatar } from "../components/Avatar";
 import { NavigateFx } from "../router";
 
-const ExploreUserCard = ({ entry }: { entry: ExploreEntry }): VNode<State> => {
+const ExploreUserCard = ({ entry, state }: { entry: ExploreEntry, state: State }): VNode<State> => {
   return h("div", {
     class: "flex flex-col gap-4 p-6 rounded-2xl bg-neutral-900/50 border border-neutral-800/50"
   }, [
@@ -12,9 +12,9 @@ const ExploreUserCard = ({ entry }: { entry: ExploreEntry }): VNode<State> => {
       h("a", {
         href: `/@${entry.user.username}`,
         class: "flex items-center gap-3 min-w-0",
-        onclick: (state: State, e: Event) => {
+        onclick: (s: State, e: Event) => {
           e.preventDefault();
-          return [state, [NavigateFx, { path: `/@${entry.user.username}` }]];
+          return [s, [NavigateFx, { path: `/@${entry.user.username}` }]];
         }
       }, [
         Avatar({ src: entry.user.avatarUrl, username: entry.user.username, sizeClass: "w-12 h-12" }),
@@ -22,7 +22,7 @@ const ExploreUserCard = ({ entry }: { entry: ExploreEntry }): VNode<State> => {
       ]),
     ]),
     h("div", { class: "pt-4 mt-4 border-t border-neutral-800/50" },
-      HabitCard(entry.habit, false, null, false)
+      HabitCard({ habit: entry.habit, isOwner: false, token: null, isEditing: false, activeHabitMenuId: null })
     )
   ]);
 };
@@ -43,7 +43,7 @@ export const ExploreView = (state: State): VNode<State> => {
     entries.length === 0
       ? h("p", { class: "text-neutral-500" }, text("Nothing to see here yet. Start logging habits!"))
       : h("div", { class: "flex flex-col gap-6" },
-        entries.map((entry) => ExploreUserCard({ entry }))
+        entries.map((entry) => ExploreUserCard({ entry, state }))
       ),
   ]);
 };

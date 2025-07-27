@@ -4,7 +4,7 @@ import { HabitCard } from "../components/HabitCard";
 import { Avatar } from "../components/Avatar";
 import { NavigateFx } from "../router";
 
-const LeaderboardUserCard = ({ entry, rank }: { entry: LeaderboardEntry, rank: number }): VNode<State> => {
+const LeaderboardUserCard = ({ entry, rank, state }: { entry: LeaderboardEntry, rank: number, state: State }): VNode<State> => {
   return h("div", {
     class: "flex flex-col gap-4 p-6 rounded-2xl bg-neutral-900/50 border border-neutral-800/50"
   }, [
@@ -14,9 +14,9 @@ const LeaderboardUserCard = ({ entry, rank }: { entry: LeaderboardEntry, rank: n
         h("a", {
           href: `/@${entry.user.username}`,
           class: "flex items-center gap-3 min-w-0",
-          onclick: (state: State, e: Event) => {
+          onclick: (s: State, e: Event) => {
             e.preventDefault();
-            return [state, [NavigateFx, { path: `/@${entry.user.username}` }]];
+            return [s, [NavigateFx, { path: `/@${entry.user.username}` }]];
           }
         }, [
           Avatar({ src: entry.user.avatarUrl, username: entry.user.username, sizeClass: "w-12 h-12" }),
@@ -29,7 +29,7 @@ const LeaderboardUserCard = ({ entry, rank }: { entry: LeaderboardEntry, rank: n
       ]),
     ]),
     entry.habits.length > 0 && h("div", { class: "flex flex-col gap-8 pt-4 mt-4 border-t border-neutral-800/50" },
-      entry.habits.map(habit => HabitCard(habit, false, null, false))
+      entry.habits.map(habit => HabitCard({ habit, isOwner: false, token: null, isEditing: false, activeHabitMenuId: null }))
     )
   ]);
 };
@@ -50,7 +50,7 @@ export const LeaderboardView = (state: State): VNode<State> => {
     users.length === 0
       ? h("p", { class: "text-neutral-500" }, text("The leaderboard is empty. Start tracking habits!"))
       : h("div", { class: "flex flex-col gap-6" },
-        users.map((entry, index) => LeaderboardUserCard({ entry, rank: index + 1 }))
+        users.map((entry, index) => LeaderboardUserCard({ entry, rank: index + 1, state }))
       ),
   ]);
 };

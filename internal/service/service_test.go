@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/axseem/peakstreak/internal/domain"
+	"github.com/axseem/peakstreak/internal/repository"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -70,6 +71,11 @@ func (m *MockRepository) CreateHabit(ctx context.Context, habit *domain.Habit) e
 
 func (m *MockRepository) UpdateHabit(ctx context.Context, habit *domain.Habit) error {
 	args := m.Called(ctx, habit)
+	return args.Error(0)
+}
+
+func (m *MockRepository) DeleteHabit(ctx context.Context, habitID, userID uuid.UUID) error {
+	args := m.Called(ctx, habitID, userID)
 	return args.Error(0)
 }
 
@@ -437,5 +443,62 @@ func TestGetLeaderboard_Success(t *testing.T) {
 
 	assert.NoError(t, err)
 	assert.Equal(t, expectedLeaderboard, leaderboard)
+	mockRepo.AssertExpectations(t)
+}
+
+func TestDeleteHabit_Success(t *testing.T) {
+	mockRepo := new(MockRepository)
+	mockStorage := new(MockStorage)
+	s := New(mockRepo, mockStorage)
+	ctx := context.Background()
+
+	userID := uuid.New()
+	habitID := uuid.New()
+
+	mockRepo.On("DeleteHabit", ctx, habitID, userID).Return(nil)
+
+	err := s.DeleteHabit(ctx, habitID, userID)
+
+	assert.NoError(t, err)
+	mockRepo.AssertExpectations(t)
+}
+
+func TestDeleteHabit_AccessDenied(t *testing.T) {
+	mockRepo := new(MockRepository)
+	mockStorage := new(MockStorage)
+	s := New(mockRepo, mockStorage)
+	ctx := context.Background()
+
+	attackerID := uuid.New()
+	habitID := uuid.New()
+
+	// The repo returns ErrHabitNotFound because the WHERE clause (id AND user_id) didn't match.
+	// This happens if the habit doesn't exist OR if it belongs to another user.
+	mockRepo.On("DeleteHabit", ctx, habitID, attackerID).Return(repository.ErrHabitNotFound)
+
+	err := s.DeleteHabit(ctx, habitID, attackerID)
+
+	assert.Error(t, err)
+	assert.True(t, errors.Is(err, ErrUserAccessDenied), "Expected user access denied error")
+	mockRepo.AssertExpectations(t)
+}
+
+func TestDeleteHabit_GenericDBError(t *testing.T) {
+	mockRepo := new(MockRepository)
+	mockStorage := new(MockStorage)
+	s := New(mockRepo, mockStorage)
+	ctx := context.Background()
+
+	userID := uuid.New()
+	habitID := uuid.New()
+	dbError := errors.New("something went wrong with the db")
+
+	mockRepo.On("DeleteHabit", ctx, habitID, userID).Return(dbError)
+
+	err := s.DeleteHabit(ctx, habitID, userID)
+
+	assert.Error(t, err)
+	assert.Equal(t, dbError, err)
+	assert.False(t, errors.Is(err, ErrUserAccessDenied))
 	mockRepo.AssertExpectations(t)
 }
