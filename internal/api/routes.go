@@ -21,7 +21,6 @@ func NewRouter(handler *APIHandler) http.Handler {
 	r.Use(middleware.Timeout(60 * time.Second))
 
 	workDir, _ := os.Getwd()
-
 	uploadsDir := http.Dir(filepath.Join(workDir, "uploads"))
 	r.Handle("/uploads/*", http.StripPrefix("/uploads/", http.FileServer(uploadsDir)))
 
@@ -29,11 +28,10 @@ func NewRouter(handler *APIHandler) http.Handler {
 		r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 		})
+
+		// Public routes
 		r.Get("/explore", handler.GetExplorePage)
 		r.Get("/leaderboard", handler.GetLeaderboard)
-		r.Get("/profile/{username}", handler.GetProfilePageData)
-		r.Get("/profile/{username}/followers", handler.GetFollowers)
-		r.Get("/profile/{username}/following", handler.GetFollowing)
 		r.Get("/users/search", handler.SearchUsers)
 
 		r.Route("/auth", func(r chi.Router) {
@@ -41,6 +39,15 @@ func NewRouter(handler *APIHandler) http.Handler {
 			r.Post("/login", handler.Login)
 		})
 
+		// Public routes that can be enhanced by authentication
+		r.Group(func(r chi.Router) {
+			r.Use(handler.authOptionalMiddleware)
+			r.Get("/profile/{username}", handler.GetProfilePageData)
+			r.Get("/profile/{username}/followers", handler.GetFollowers)
+			r.Get("/profile/{username}/following", handler.GetFollowing)
+		})
+
+		// Strictly authenticated routes
 		r.Group(func(r chi.Router) {
 			r.Use(handler.authMiddleware)
 
@@ -71,10 +78,11 @@ func ServeSPA(r chi.Router, staticPath string) {
 		}
 
 		path := r.URL.Path
-		if _, err := os.Stat(filepath.Join(staticPath, path)); !os.IsNotExist(err) {
-			http.FileServer(filesDir).ServeHTTP(w, r)
-		} else {
+		fsPath := filepath.Join(staticPath, path)
+		if _, err := os.Stat(fsPath); os.IsNotExist(err) {
 			http.ServeFile(w, r, filepath.Join(staticPath, "index.html"))
+		} else {
+			http.FileServer(filesDir).ServeHTTP(w, r)
 		}
 	})
 }

@@ -14,6 +14,7 @@ import (
 	"github.com/axseem/peakstreak/internal/config"
 	"github.com/axseem/peakstreak/internal/repository"
 	"github.com/axseem/peakstreak/internal/service"
+	"github.com/axseem/peakstreak/internal/storage"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -27,11 +28,6 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err := os.MkdirAll("./uploads/avatars", os.ModePerm); err != nil {
-		slog.Error("cannot create uploads directory", "error", err)
-		os.Exit(1)
-	}
-
 	dbpool, err := pgxpool.New(context.Background(), cfg.DBUrl)
 	if err != nil {
 		slog.Error("unable to connect to database", "error", err)
@@ -40,7 +36,9 @@ func main() {
 	defer dbpool.Close()
 
 	postgresRepo := repository.NewPostgresRepository(dbpool)
-	appService := service.New(postgresRepo)
+	avatarStoragePath := "./uploads/avatars"
+	fileStorage := storage.NewLocalStorage(avatarStoragePath, "/uploads/avatars")
+	appService := service.New(postgresRepo, fileStorage)
 	apiHandler := api.NewAPIHandler(appService, &cfg)
 	router := api.NewRouter(apiHandler)
 

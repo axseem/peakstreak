@@ -4,10 +4,8 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
-	"strings"
 	"time"
 
-	"github.com/axseem/peakstreak/internal/auth"
 	"github.com/axseem/peakstreak/internal/config"
 	"github.com/axseem/peakstreak/internal/domain"
 	"github.com/axseem/peakstreak/internal/repository"
@@ -93,19 +91,13 @@ func (h *APIHandler) Login(w http.ResponseWriter, r *http.Request) {
 		Password:   req.Password,
 	}
 
-	user, err := h.service.LoginUser(r.Context(), params)
+	user, token, err := h.service.LoginUser(r.Context(), params, h.cfg.JWTSecret, h.cfg.JWTExpiresIn)
 	if err != nil {
 		if errors.Is(err, service.ErrInvalidCredentials) {
 			errorResponse(w, http.StatusUnauthorized, "Invalid credentials")
 			return
 		}
-		errorResponse(w, http.StatusInternalServerError, "Failed to login")
-		return
-	}
-
-	token, err := auth.GenerateToken(user.ID, h.cfg.JWTSecret, h.cfg.JWTExpiresIn)
-	if err != nil {
-		slog.Error("failed to generate token", "error", err)
+		slog.Error("failed to login", "error", err)
 		errorResponse(w, http.StatusInternalServerError, "Failed to login")
 		return
 	}
@@ -120,19 +112,7 @@ func (h *APIHandler) Login(w http.ResponseWriter, r *http.Request) {
 
 func (h *APIHandler) GetProfilePageData(w http.ResponseWriter, r *http.Request) {
 	username := chi.URLParam(r, "username")
-
-	var authenticatedUserID uuid.UUID
-	authHeader := r.Header.Get("Authorization")
-	if authHeader != "" {
-		parts := strings.Split(authHeader, " ")
-		if len(parts) == 2 && strings.ToLower(parts[0]) == "bearer" {
-			tokenString := parts[1]
-			claims, err := auth.ValidateToken(tokenString, h.cfg.JWTSecret)
-			if err == nil { // Silently ignore invalid tokens for this public endpoint
-				authenticatedUserID = claims.UserID
-			}
-		}
-	}
+	authenticatedUserID, _ := getUserIDFromContext(r.Context())
 
 	profileData, err := h.service.GetProfileData(r.Context(), username, authenticatedUserID)
 	if err != nil {
@@ -167,7 +147,7 @@ func (h *APIHandler) CreateHabit(w http.ResponseWriter, r *http.Request) {
 	userID, ok := getUserIDFromContext(r.Context())
 	if !ok {
 		errorResponse(w, http.StatusUnauthorized, "Authentication error")
-		return
+		panic("unreachable: middleware is not correctly applied")
 	}
 
 	params := service.CreateHabitParams{
@@ -303,22 +283,16 @@ func (h *APIHandler) FollowUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	userToFollow, err := h.service.GetUserByUsername(r.Context(), usernameToFollow)
-	if err != nil {
-		if errors.Is(err, repository.ErrUserNotFound) {
-			errorResponse(w, http.StatusNotFound, "User to follow not found")
-			return
-		}
-		errorResponse(w, http.StatusInternalServerError, "Unexpected internal server error")
-		return
-	}
-
-	if err := h.service.FollowUser(r.Context(), followerID, userToFollow.ID); err != nil {
-		if errors.Is(err, service.ErrCannotFollowSelf) {
+	if err := h.service.FollowUserByUsername(r.Context(), followerID, usernameToFollow); err != nil {
+		switch {
+		case errors.Is(err, service.ErrCannotFollowSelf):
 			errorResponse(w, http.StatusBadRequest, err.Error())
-			return
+		case errors.Is(err, repository.ErrUserNotFound):
+			errorResponse(w, http.StatusNotFound, "User to follow not found")
+		default:
+			slog.Error("failed to follow user", "error", err)
+			errorResponse(w, http.StatusInternalServerError, "Failed to follow user")
 		}
-		errorResponse(w, http.StatusInternalServerError, "Failed to follow user")
 		return
 	}
 
@@ -334,17 +308,12 @@ func (h *APIHandler) UnfollowUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	userToUnfollow, err := h.service.GetUserByUsername(r.Context(), usernameToUnfollow)
-	if err != nil {
+	if err := h.service.UnfollowUserByUsername(r.Context(), followerID, usernameToUnfollow); err != nil {
 		if errors.Is(err, repository.ErrUserNotFound) {
 			errorResponse(w, http.StatusNotFound, "User to unfollow not found")
 			return
 		}
-		errorResponse(w, http.StatusInternalServerError, "Unexpected internal server error")
-		return
-	}
-
-	if err := h.service.UnfollowUser(r.Context(), followerID, userToUnfollow.ID); err != nil {
+		slog.Error("failed to unfollow user", "error", err)
 		errorResponse(w, http.StatusInternalServerError, "Failed to unfollow user")
 		return
 	}

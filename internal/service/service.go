@@ -4,18 +4,16 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"log/slog"
 	"mime/multipart"
 	"net/http"
-	"os"
-	"path/filepath"
 	"strings"
-	"sync"
 	"time"
 
+	"github.com/axseem/peakstreak/internal/auth"
 	"github.com/axseem/peakstreak/internal/domain"
 	"github.com/axseem/peakstreak/internal/repository"
+	"github.com/axseem/peakstreak/internal/storage"
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -33,7 +31,6 @@ const (
 
 const (
 	MAX_AVATAR_SIZE = 2 * MB
-	AVATAR_PATH     = "./uploads/avatars"
 )
 
 var allowedMimeTypes = map[string]bool{
@@ -42,11 +39,15 @@ var allowedMimeTypes = map[string]bool{
 }
 
 type Service struct {
-	repo repository.AllInOneRepository
+	repo    repository.IRepository
+	storage storage.FileStorage
 }
 
-func New(repo repository.AllInOneRepository) *Service {
-	return &Service{repo: repo}
+func New(repo repository.IRepository, storage storage.FileStorage) *Service {
+	return &Service{
+		repo:    repo,
+		storage: storage,
+	}
 }
 
 type CreateUserParams struct {
@@ -81,22 +82,27 @@ type LoginUserParams struct {
 	Password   string
 }
 
-func (s *Service) LoginUser(ctx context.Context, params LoginUserParams) (*domain.User, error) {
+func (s *Service) LoginUser(ctx context.Context, params LoginUserParams, jwtSecret string, jwtExpiresIn time.Duration) (*domain.User, string, error) {
 	user, err := s.repo.GetUserByEmailOrUsername(ctx, params.Identifier)
 	if err != nil {
 		if errors.Is(err, repository.ErrUserNotFound) {
-			return nil, ErrInvalidCredentials
+			return nil, "", ErrInvalidCredentials
 		}
-		return nil, err
+		return nil, "", err
 	}
 
 	err = bcrypt.CompareHashAndPassword([]byte(user.HashedPassword), []byte(params.Password))
 	if err != nil {
-		return nil, ErrInvalidCredentials
+		return nil, "", ErrInvalidCredentials
+	}
+
+	token, err := auth.GenerateToken(user.ID, jwtSecret, jwtExpiresIn)
+	if err != nil {
+		return nil, "", fmt.Errorf("failed to generate token: %w", err)
 	}
 
 	user.HashedPassword = ""
-	return user, nil
+	return user, token, nil
 }
 
 func (s *Service) UpdateUserAvatar(ctx context.Context, userID uuid.UUID, file multipart.File, header *multipart.FileHeader) (string, error) {
@@ -121,42 +127,27 @@ func (s *Service) UpdateUserAvatar(ctx context.Context, userID uuid.UUID, file m
 		return "", fmt.Errorf("could not get user's current avatar: %w", err)
 	}
 
-	ext := filepath.Ext(header.Filename)
-	newFilename := uuid.New().String() + ext
-	filePath := filepath.Join(AVATAR_PATH, newFilename)
-
-	dst, err := os.Create(filePath)
+	newFilename := uuid.New().String() + ".png" // Standardize on a single extension
+	publicURL, err := s.storage.Save(ctx, file, newFilename)
 	if err != nil {
-		return "", fmt.Errorf("could not create file on server: %w", err)
-	}
-	defer dst.Close()
-
-	if _, err := io.Copy(dst, file); err != nil {
 		return "", fmt.Errorf("could not save file: %w", err)
 	}
 
-	publicURL := "/uploads/avatars/" + newFilename
 	if err := s.repo.UpdateUserAvatar(ctx, userID, &publicURL); err != nil {
-		os.Remove(filePath) // Clean up the newly saved file on DB error
+		// Attempt to clean up the newly saved file on DB error
+		if cleanupErr := s.storage.Delete(ctx, publicURL); cleanupErr != nil {
+			slog.Warn("failed to cleanup orphaned avatar file", "url", publicURL, "error", cleanupErr)
+		}
 		return "", fmt.Errorf("could not update user avatar in database: %w", err)
 	}
 
 	if oldAvatarURL != nil && *oldAvatarURL != "" {
-		oldFilePath := filepath.Join(".", *oldAvatarURL)
-		if err := os.Remove(oldFilePath); err != nil {
-			slog.Warn("failed to delete old avatar file", "path", oldFilePath, "error", err)
+		if err := s.storage.Delete(ctx, *oldAvatarURL); err != nil {
+			slog.Warn("failed to delete old avatar file", "url", *oldAvatarURL, "error", err)
 		}
 	}
 
 	return publicURL, nil
-}
-
-func (s *Service) GetUsers(ctx context.Context) ([]domain.User, error) {
-	users, err := s.repo.GetUsers(ctx)
-	if err != nil {
-		return nil, err
-	}
-	return users, nil
 }
 
 func (s *Service) SearchUsers(ctx context.Context, query string) ([]domain.PublicUser, error) {
@@ -191,56 +182,33 @@ func (s *Service) GetProfileData(ctx context.Context, username string, authentic
 	}
 	user.HashedPassword = ""
 
+	habits, err := s.GetAllHabitsWithLogs(ctx, user.ID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get habits: %w", err)
+	}
+
+	followersCount, err := s.repo.GetFollowerCount(ctx, user.ID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get follower count: %w", err)
+	}
+
+	followingCount, err := s.repo.GetFollowingCount(ctx, user.ID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get following count: %w", err)
+	}
+
 	isOwner := user.ID == authenticatedUserID
-
-	var habitsWithLogs []domain.HabitWithLogs
-	var followersCount, followingCount int
 	var isFollowing bool
-	var wg sync.WaitGroup
-	var errHabits, errFollowers, errFollowing, errIsFollowing error
-
-	wg.Add(4)
-
-	go func() {
-		defer wg.Done()
-		habitsWithLogs, errHabits = s.GetAllHabitsWithLogs(ctx, user.ID)
-	}()
-
-	go func() {
-		defer wg.Done()
-		followersCount, errFollowers = s.repo.GetFollowerCount(ctx, user.ID)
-	}()
-
-	go func() {
-		defer wg.Done()
-		followingCount, errFollowing = s.repo.GetFollowingCount(ctx, user.ID)
-	}()
-
-	go func() {
-		defer wg.Done()
-		if !isOwner {
-			isFollowing, errIsFollowing = s.repo.IsFollowing(ctx, authenticatedUserID, user.ID)
+	if !isOwner && authenticatedUserID != uuid.Nil {
+		isFollowing, err = s.repo.IsFollowing(ctx, authenticatedUserID, user.ID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to check following status: %w", err)
 		}
-	}()
-
-	wg.Wait()
-
-	if errHabits != nil {
-		return nil, fmt.Errorf("failed to get habits: %w", errHabits)
-	}
-	if errFollowers != nil {
-		return nil, fmt.Errorf("failed to get followers count: %w", errFollowers)
-	}
-	if errFollowing != nil {
-		return nil, fmt.Errorf("failed to get following count: %w", errFollowing)
-	}
-	if errIsFollowing != nil {
-		return nil, fmt.Errorf("failed to check following status: %w", errIsFollowing)
 	}
 
 	return &ProfileData{
 		User:           user,
-		Habits:         habitsWithLogs,
+		Habits:         habits,
 		IsOwner:        isOwner,
 		FollowersCount: followersCount,
 		FollowingCount: followingCount,
@@ -292,32 +260,6 @@ func (s *Service) UpdateHabit(ctx context.Context, params UpdateHabitParams, hab
 	return habit, nil
 }
 
-func (s *Service) GetHabitDetailsForUser(ctx context.Context, habitID, requestingUserID uuid.UUID) (*domain.HabitWithLogs, error) {
-	habit, err := s.repo.GetHabitByID(ctx, habitID)
-	if err != nil {
-		return nil, err
-	}
-
-	if habit.UserID != requestingUserID {
-		return nil, ErrUserAccessDenied
-	}
-
-	endDate := time.Now()
-	startDate := endDate.AddDate(0, 0, -30)
-
-	logs, err := s.repo.GetHabitLogs(ctx, habitID, startDate, endDate)
-	if err != nil {
-		return nil, err
-	}
-
-	details := &domain.HabitWithLogs{
-		Habit: *habit,
-		Logs:  logs,
-	}
-
-	return details, nil
-}
-
 func (s *Service) GetAllHabitsWithLogs(ctx context.Context, userID uuid.UUID) ([]domain.HabitWithLogs, error) {
 	habits, err := s.repo.GetHabitsByUserID(ctx, userID)
 	if err != nil {
@@ -345,8 +287,8 @@ func (s *Service) GetAllHabitsWithLogs(ctx context.Context, userID uuid.UUID) ([
 
 	habitsWithLogs := make([]domain.HabitWithLogs, len(habits))
 	for i, habit := range habits {
-		logsForHabit := logsByHabitID[habit.ID]
-		if logsForHabit == nil {
+		logsForHabit, ok := logsByHabitID[habit.ID]
+		if !ok {
 			logsForHabit = make([]domain.HabitLog, 0)
 		}
 		habitsWithLogs[i] = domain.HabitWithLogs{
@@ -387,15 +329,23 @@ func (s *Service) LogHabit(ctx context.Context, params LogHabitParams, userID uu
 	return log, nil
 }
 
-func (s *Service) FollowUser(ctx context.Context, followerID, userToFollowID uuid.UUID) error {
-	if followerID == userToFollowID {
+func (s *Service) FollowUserByUsername(ctx context.Context, followerID uuid.UUID, usernameToFollow string) error {
+	userToFollow, err := s.repo.GetUserByUsername(ctx, usernameToFollow)
+	if err != nil {
+		return err
+	}
+	if followerID == userToFollow.ID {
 		return ErrCannotFollowSelf
 	}
-	return s.repo.FollowUser(ctx, followerID, userToFollowID)
+	return s.repo.FollowUser(ctx, followerID, userToFollow.ID)
 }
 
-func (s *Service) UnfollowUser(ctx context.Context, followerID, userToUnfollowID uuid.UUID) error {
-	return s.repo.UnfollowUser(ctx, followerID, userToUnfollowID)
+func (s *Service) UnfollowUserByUsername(ctx context.Context, followerID uuid.UUID, usernameToUnfollow string) error {
+	userToUnfollow, err := s.repo.GetUserByUsername(ctx, usernameToUnfollow)
+	if err != nil {
+		return err // Propagates ErrUserNotFound
+	}
+	return s.repo.UnfollowUser(ctx, followerID, userToUnfollow.ID)
 }
 
 func (s *Service) GetFollowers(ctx context.Context, username string) ([]domain.PublicUser, error) {
@@ -414,139 +364,10 @@ func (s *Service) GetFollowing(ctx context.Context, username string) ([]domain.P
 	return s.repo.GetFollowing(ctx, user.ID)
 }
 
-type LeaderboardEntry struct {
-	User            domain.PublicUser      `json:"user"`
-	TotalLoggedDays int64                  `json:"totalLoggedDays"`
-	Habits          []domain.HabitWithLogs `json:"habits"`
+func (s *Service) GetLeaderboard(ctx context.Context) ([]domain.LeaderboardEntry, error) {
+	return s.repo.GetLeaderboard(ctx, 50)
 }
 
-func (s *Service) GetLeaderboard(ctx context.Context) ([]LeaderboardEntry, error) {
-	ranks, err := s.repo.GetLeaderboardRanks(ctx, 50)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get leaderboard ranks: %w", err)
-	}
-
-	if len(ranks) == 0 {
-		return []LeaderboardEntry{}, nil
-	}
-
-	userIDs := make([]uuid.UUID, len(ranks))
-	for i, rank := range ranks {
-		userIDs[i] = rank.UserID
-	}
-
-	habits, err := s.repo.GetHabitsByUserIDs(ctx, userIDs)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get habits for leaderboard users: %w", err)
-	}
-
-	habitIDs := make([]uuid.UUID, len(habits))
-	for i, habit := range habits {
-		habitIDs[i] = habit.ID
-	}
-
-	logs, err := s.repo.GetLogsForHabits(ctx, habitIDs)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get logs for leaderboard habits: %w", err)
-	}
-
-	logsByHabitID := make(map[uuid.UUID][]domain.HabitLog)
-	for _, log := range logs {
-		logsByHabitID[log.HabitID] = append(logsByHabitID[log.HabitID], log)
-	}
-
-	habitsByUserID := make(map[uuid.UUID][]domain.HabitWithLogs)
-	for _, habit := range habits {
-		logsForHabit := logsByHabitID[habit.ID]
-		if logsForHabit == nil {
-			logsForHabit = make([]domain.HabitLog, 0)
-		}
-		habitWithLogs := domain.HabitWithLogs{
-			Habit: habit,
-			Logs:  logsForHabit,
-		}
-		habitsByUserID[habit.UserID] = append(habitsByUserID[habit.UserID], habitWithLogs)
-	}
-
-	result := make([]LeaderboardEntry, len(ranks))
-	for i, rank := range ranks {
-		userHabits := habitsByUserID[rank.UserID]
-		if userHabits == nil {
-			userHabits = []domain.HabitWithLogs{}
-		}
-
-		result[i] = LeaderboardEntry{
-			User: domain.PublicUser{
-				ID:        rank.UserID,
-				Username:  rank.Username,
-				AvatarURL: rank.AvatarURL,
-			},
-			TotalLoggedDays: rank.TotalLoggedDays,
-			Habits:          userHabits,
-		}
-	}
-
-	return result, nil
-}
-
-type ExploreEntry struct {
-	User  domain.PublicUser    `json:"user"`
-	Habit domain.HabitWithLogs `json:"habit"`
-}
-
-func (s *Service) GetExplorePage(ctx context.Context) ([]ExploreEntry, error) {
-	items, err := s.repo.GetExploreItems(ctx, 20) // limit to 20
-	if err != nil {
-		return nil, fmt.Errorf("failed to get explore items: %w", err)
-	}
-
-	if len(items) == 0 {
-		return []ExploreEntry{}, nil
-	}
-
-	// Collect habit IDs to fetch all their logs in one go
-	habitIDs := make([]uuid.UUID, len(items))
-	for i, item := range items {
-		habitIDs[i] = item.HabitID
-	}
-
-	logs, err := s.repo.GetLogsForHabits(ctx, habitIDs)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get logs for explore habits: %w", err)
-	}
-
-	// Group logs by habit ID for efficient lookup
-	logsByHabitID := make(map[uuid.UUID][]domain.HabitLog)
-	for _, log := range logs {
-		logsByHabitID[log.HabitID] = append(logsByHabitID[log.HabitID], log)
-	}
-
-	// Build the final response
-	result := make([]ExploreEntry, len(items))
-	for i, item := range items {
-		habitLogs := logsByHabitID[item.HabitID]
-		if habitLogs == nil {
-			habitLogs = []domain.HabitLog{}
-		}
-
-		result[i] = ExploreEntry{
-			User: domain.PublicUser{
-				ID:        item.UserID,
-				Username:  item.Username,
-				AvatarURL: item.AvatarURL,
-			},
-			Habit: domain.HabitWithLogs{
-				Habit: domain.Habit{
-					ID:        item.HabitID,
-					UserID:    item.HabitUserID,
-					Name:      item.HabitName,
-					ColorHue:  item.HabitColorHue,
-					CreatedAt: item.HabitCreatedAt,
-				},
-				Logs: habitLogs,
-			},
-		}
-	}
-
-	return result, nil
+func (s *Service) GetExplorePage(ctx context.Context) ([]domain.ExploreEntry, error) {
+	return s.repo.GetExplorePage(ctx, 20)
 }

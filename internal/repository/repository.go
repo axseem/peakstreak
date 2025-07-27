@@ -2,7 +2,6 @@ package repository
 
 import (
 	"context"
-	"time"
 
 	"github.com/axseem/peakstreak/internal/domain"
 	"github.com/google/uuid"
@@ -32,7 +31,6 @@ type UserRepository interface {
 	CreateUser(ctx context.Context, user *domain.User) error
 	GetUserByUsername(ctx context.Context, username string) (*domain.User, error)
 	GetUserByEmailOrUsername(ctx context.Context, identifier string) (*domain.User, error)
-	GetUsers(ctx context.Context) ([]domain.User, error)
 	GetUserByID(ctx context.Context, id uuid.UUID) (*domain.User, error)
 	GetUserAvatar(ctx context.Context, userID uuid.UUID) (*string, error)
 	UpdateUserAvatar(ctx context.Context, userID uuid.UUID, avatarURL *string) error
@@ -42,11 +40,9 @@ type UserRepository interface {
 type HabitRepository interface {
 	CreateHabit(ctx context.Context, habit *domain.Habit) error
 	GetHabitsByUserID(ctx context.Context, userID uuid.UUID) ([]domain.Habit, error)
-	GetHabitsByUserIDs(ctx context.Context, userIDs []uuid.UUID) ([]domain.Habit, error)
 	GetHabitByID(ctx context.Context, habitID uuid.UUID) (*domain.Habit, error)
 	UpdateHabit(ctx context.Context, habit *domain.Habit) error
 	UpsertHabitLog(ctx context.Context, log *domain.HabitLog) error
-	GetHabitLogs(ctx context.Context, habitID uuid.UUID, startDate, endDate time.Time) ([]domain.HabitLog, error)
 	GetLogsForHabits(ctx context.Context, habitIDs []uuid.UUID) ([]domain.HabitLog, error)
 }
 
@@ -60,14 +56,14 @@ type FollowerRepository interface {
 	GetFollowing(ctx context.Context, userID uuid.UUID) ([]domain.PublicUser, error)
 }
 
-type LeaderboardRepository interface {
-	GetLeaderboardRanks(ctx context.Context, limit int) ([]domain.LeaderboardRank, error)
+type DashboardRepository interface {
+	GetLeaderboard(ctx context.Context, limit int) ([]domain.LeaderboardEntry, error)
+	GetExplorePage(ctx context.Context, limit int) ([]domain.ExploreEntry, error)
 }
 
-type AllInOneRepository interface {
+type IRepository interface {
 	UserRepository
 	HabitRepository
 	FollowerRepository
-	LeaderboardRepository
-	GetExploreItems(ctx context.Context, limit int) ([]domain.ExploreItem, error)
+	DashboardRepository
 }

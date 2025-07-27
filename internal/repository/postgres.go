@@ -2,9 +2,9 @@ package repository
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"strings"
-	"time"
 
 	"github.com/axseem/peakstreak/internal/domain"
 	"github.com/google/uuid"
@@ -156,24 +156,6 @@ func (r *PostgresRepository) GetHabitsByUserID(ctx context.Context, userID uuid.
 	return habits, nil
 }
 
-func (r *PostgresRepository) GetHabitsByUserIDs(ctx context.Context, userIDs []uuid.UUID) ([]domain.Habit, error) {
-	if len(userIDs) == 0 {
-		return []domain.Habit{}, nil
-	}
-	query := `SELECT id, user_id, name, color_hue, created_at FROM habits WHERE user_id = ANY($1) ORDER BY user_id, created_at DESC`
-	rows, err := r.db.Query(ctx, query, userIDs)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	habits, err := pgx.CollectRows(rows, pgx.RowToStructByName[domain.Habit])
-	if err != nil {
-		return nil, err
-	}
-	return habits, nil
-}
-
 func (r *PostgresRepository) GetHabitByID(ctx context.Context, habitID uuid.UUID) (*domain.Habit, error) {
 	query := `SELECT id, user_id, name, color_hue, created_at FROM habits WHERE id = $1`
 	var habit domain.Habit
@@ -206,27 +188,11 @@ func (r *PostgresRepository) UpsertHabitLog(ctx context.Context, log *domain.Hab
         ON CONFLICT (habit_id, log_date) DO UPDATE SET status = EXCLUDED.status, updated_at = NOW()
         RETURNING id, created_at, updated_at`
 
-	return r.db.QueryRow(ctx, query, log.ID, log.HabitID, log.LogDate, log.Status).Scan(&log.ID, &log.CreatedAt, &log.UpdatedAt)
-}
-
-func (r *PostgresRepository) GetHabitLogs(ctx context.Context, habitID uuid.UUID, startDate, endDate time.Time) ([]domain.HabitLog, error) {
-	query := `
-        SELECT id, habit_id, log_date, status, created_at, updated_at
-        FROM habit_logs
-        WHERE habit_id = $1 AND log_date >= $2 AND log_date <= $3
-        ORDER BY log_date ASC`
-
-	rows, err := r.db.Query(ctx, query, habitID, startDate, endDate)
+	err := r.db.QueryRow(ctx, query, log.ID, log.HabitID, log.LogDate, log.Status).Scan(&log.ID, &log.CreatedAt, &log.UpdatedAt)
 	if err != nil {
-		return nil, err
+		return err
 	}
-	defer rows.Close()
-
-	logs, err := pgx.CollectRows(rows, pgx.RowToStructByName[domain.HabitLog])
-	if err != nil {
-		return nil, err
-	}
-	return logs, nil
+	return nil
 }
 
 func (r *PostgresRepository) GetLogsForHabits(ctx context.Context, habitIDs []uuid.UUID) ([]domain.HabitLog, error) {
@@ -236,7 +202,7 @@ func (r *PostgresRepository) GetLogsForHabits(ctx context.Context, habitIDs []uu
 	query := `
         SELECT id, habit_id, log_date, status, created_at, updated_at
         FROM habit_logs
-        WHERE habit_id = ANY($1)
+        WHERE habit_id = ANY($1) AND status = TRUE
         ORDER BY habit_id, log_date ASC`
 
 	rows, err := r.db.Query(ctx, query, habitIDs)
@@ -326,65 +292,143 @@ func (r *PostgresRepository) GetFollowing(ctx context.Context, userID uuid.UUID)
 	return users, nil
 }
 
-func (r *PostgresRepository) GetLeaderboardRanks(ctx context.Context, limit int) ([]domain.LeaderboardRank, error) {
+func (r *PostgresRepository) GetLeaderboard(ctx context.Context, limit int) ([]domain.LeaderboardEntry, error) {
 	query := `
-		SELECT
-			u.id as user_id,
-			u.username,
-			u.avatar_url,
-			COUNT(hl.id) as total_logged_days
-		FROM
-			users u
-		JOIN
-			habits h ON u.id = h.user_id
-		JOIN
-			habit_logs hl ON h.id = hl.habit_id
-		WHERE
-			hl.status = TRUE
-		GROUP BY
-			u.id
-		ORDER BY
-			total_logged_days DESC
-		LIMIT $1`
-
+WITH RankedUsers AS (
+    SELECT
+        u.id,
+        u.username,
+        u.avatar_url,
+        COUNT(hl.id) as total_logged_days
+    FROM
+        users u
+    JOIN
+        habits h ON u.id = h.user_id
+    JOIN
+        habit_logs hl ON h.id = hl.habit_id
+    WHERE
+        hl.status = TRUE
+    GROUP BY
+        u.id
+    ORDER BY
+        total_logged_days DESC
+    LIMIT $1
+),
+HabitsWithLogs AS (
+    SELECT
+        h.user_id,
+        json_agg(
+            json_build_object(
+                'id', h.id,
+                'userId', h.user_id,
+                'name', h.name,
+                'colorHue', h.color_hue,
+                'createdAt', to_jsonb(h.created_at),
+                'logs', COALESCE(
+                    (SELECT json_agg(
+                        json_build_object(
+                            'id', hl.id,
+                            'habitId', hl.habit_id,
+                            'date', to_jsonb(hl.log_date::timestamp AT TIME ZONE 'UTC'),
+                            'status', hl.status,
+                            'createdAt', to_jsonb(hl.created_at),
+                            'updatedAt', to_jsonb(hl.updated_at)
+                        ) ORDER BY hl.log_date ASC
+                    ) FROM habit_logs hl WHERE hl.habit_id = h.id AND hl.status = TRUE),
+                    '[]'::json
+                )
+            )
+        ) AS habits
+    FROM
+        habits h
+    WHERE
+        h.user_id IN (SELECT id FROM RankedUsers)
+    GROUP BY
+        h.user_id
+)
+SELECT json_build_object(
+    'user', json_build_object('id', ru.id, 'username', ru.username, 'avatarUrl', ru.avatar_url),
+    'totalLoggedDays', ru.total_logged_days,
+    'habits', COALESCE(hwl.habits, '[]'::json)
+)
+FROM RankedUsers ru
+LEFT JOIN HabitsWithLogs hwl ON ru.id = hwl.user_id
+ORDER BY ru.total_logged_days DESC;
+`
 	rows, err := r.db.Query(ctx, query, limit)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
-	ranks, err := pgx.CollectRows(rows, pgx.RowToStructByName[domain.LeaderboardRank])
-	if err != nil {
-		return nil, err
+	var entries []domain.LeaderboardEntry
+	for rows.Next() {
+		var jsonData []byte
+		if err := rows.Scan(&jsonData); err != nil {
+			return nil, err
+		}
+
+		var entry domain.LeaderboardEntry
+		if err := json.Unmarshal(jsonData, &entry); err != nil {
+			return nil, err
+		}
+		entries = append(entries, entry)
 	}
-	return ranks, nil
+
+	return entries, rows.Err()
 }
 
-func (r *PostgresRepository) GetExploreItems(ctx context.Context, limit int) ([]domain.ExploreItem, error) {
+func (r *PostgresRepository) GetExplorePage(ctx context.Context, limit int) ([]domain.ExploreEntry, error) {
 	query := `
-		WITH LatestUserLogs AS (
-			SELECT DISTINCT ON (h.user_id)
-				h.user_id,
-				hl.habit_id
-			FROM habit_logs hl
-			JOIN habits h ON hl.habit_id = h.id
-			WHERE hl.status = TRUE
-			ORDER BY h.user_id, hl.log_date DESC, hl.updated_at DESC
-		)
-		SELECT
-			u.id AS user_id,
-			u.username,
-			u.avatar_url,
-			h.id AS habit_id,
-			h.user_id AS habit_user_id,
-			h.name AS habit_name,
-			h.color_hue AS habit_color_hue,
-			h.created_at AS habit_created_at
-		FROM LatestUserLogs lul
-		JOIN users u ON lul.user_id = u.id
-		JOIN habits h ON lul.habit_id = h.id
-		ORDER BY random()
-		LIMIT $1`
+WITH LatestUserLogs AS (
+    SELECT DISTINCT ON (h.user_id)
+        h.user_id,
+        h.id AS habit_id,
+        hl.updated_at
+    FROM habit_logs hl
+    JOIN habits h ON hl.habit_id = h.id
+    WHERE hl.status = TRUE
+    ORDER BY h.user_id, hl.updated_at DESC
+),
+ExploreHabits AS (
+    SELECT
+        lul.user_id,
+        h.id,
+        h.name,
+        h.color_hue,
+        h.created_at,
+        COALESCE(
+            (SELECT json_agg(
+                json_build_object(
+                    'id', hl.id,
+                    'habitId', hl.habit_id,
+                    'date', to_jsonb(hl.log_date::timestamp AT TIME ZONE 'UTC'),
+                    'status', hl.status,
+                    'createdAt', to_jsonb(hl.created_at),
+                    'updatedAt', to_jsonb(hl.updated_at)
+                ) ORDER BY hl.log_date ASC
+            ) FROM habit_logs hl WHERE hl.habit_id = h.id AND hl.status = TRUE),
+            '[]'::json
+        ) AS logs
+    FROM LatestUserLogs lul
+    JOIN habits h ON lul.habit_id = h.id
+    ORDER BY lul.updated_at DESC
+    LIMIT $1
+)
+SELECT json_build_object(
+    'user', json_build_object('id', u.id, 'username', u.username, 'avatarUrl', u.avatar_url),
+    'habit', json_build_object(
+        'id', eh.id,
+        'userId', eh.user_id,
+        'name', eh.name,
+        'colorHue', eh.color_hue,
+        'createdAt', to_jsonb(eh.created_at),
+        'logs', eh.logs
+    )
+)
+FROM ExploreHabits eh
+JOIN users u ON eh.user_id = u.id;
+`
 
 	rows, err := r.db.Query(ctx, query, limit)
 	if err != nil {
@@ -392,9 +436,19 @@ func (r *PostgresRepository) GetExploreItems(ctx context.Context, limit int) ([]
 	}
 	defer rows.Close()
 
-	items, err := pgx.CollectRows(rows, pgx.RowToStructByName[domain.ExploreItem])
-	if err != nil {
-		return nil, err
+	var entries []domain.ExploreEntry
+	for rows.Next() {
+		var jsonData []byte
+		if err := rows.Scan(&jsonData); err != nil {
+			return nil, err
+		}
+
+		var entry domain.ExploreEntry
+		if err := json.Unmarshal(jsonData, &entry); err != nil {
+			return nil, err
+		}
+		entries = append(entries, entry)
 	}
-	return items, nil
+
+	return entries, rows.Err()
 }

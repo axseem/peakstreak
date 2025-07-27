@@ -43,20 +43,15 @@ type HabitWithLogs struct {
 	Logs []HabitLog `json:"logs"`
 }
 
-type LeaderboardRank struct {
-	UserID          uuid.UUID
-	Username        string
-	AvatarURL       *string
-	TotalLoggedDays int64
+// LeaderboardEntry is the model returned directly from the database query
+type LeaderboardEntry struct {
+	User            PublicUser      `json:"user" db:"user"`
+	TotalLoggedDays int64           `json:"totalLoggedDays" db:"total_logged_days"`
+	Habits          []HabitWithLogs `json:"habits" db:"habits"`
 }
 
-type ExploreItem struct {
-	UserID         uuid.UUID
-	Username       string
-	AvatarURL      *string
-	HabitID        uuid.UUID
-	HabitUserID    uuid.UUID
-	HabitName      string
-	HabitColorHue  int
-	HabitCreatedAt time.Time
+// ExploreEntry is the model returned directly from the database query
+type ExploreEntry struct {
+	User  PublicUser    `json:"user" db:"user"`
+	Habit HabitWithLogs `json:"habit" db:"habit"`
 }
