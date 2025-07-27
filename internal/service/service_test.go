@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"mime/multipart"
+	"strings"
 	"testing"
 	"time"
 
@@ -15,9 +16,6 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-// --- Mock Implementations ---
-
-// MockRepository provides a mock implementation of the IRepository interface for testing.
 type MockRepository struct {
 	mock.Mock
 }
@@ -172,7 +170,6 @@ func (m *MockRepository) GetExplorePage(ctx context.Context, limit int) ([]domai
 	return args.Get(0).([]domain.ExploreEntry), args.Error(1)
 }
 
-// MockStorage provides a mock implementation of the FileStorage interface.
 type MockStorage struct {
 	mock.Mock
 }
@@ -187,15 +184,15 @@ func (m *MockStorage) Delete(ctx context.Context, url string) error {
 	return args.Error(0)
 }
 
-// --- Test Cases ---
+type mockMultipartFile struct {
+	*strings.Reader
+}
+
+func (m *mockMultipartFile) Close() error {
+	return nil
+}
 
 func TestCreateUser_Success(t *testing.T) {
-	// Why this test exists:
-	// To verify the primary success path of user creation. It ensures that valid input results
-	// in a call to the repository and, critically, that the returned user object has its
-	// sensitive HashedPassword field cleared.
-	// Principle: Confidence. This test gives confidence in the most critical function of the
-	// auth system: account creation, including the security measure of not leaking password hashes.
 	mockRepo := new(MockRepository)
 	mockStorage := new(MockStorage)
 	s := New(mockRepo, mockStorage)
@@ -220,11 +217,6 @@ func TestCreateUser_Success(t *testing.T) {
 }
 
 func TestLoginUser_Success(t *testing.T) {
-	// Why this test exists:
-	// To confirm the entire successful login flow: fetching a user, correctly comparing the
-	// password, generating a JWT, and returning a sanitized user object.
-	// Principle: Predictability. This ensures the function's output (user, token, nil error)
-	// is predictable and correct for valid inputs.
 	mockRepo := new(MockRepository)
 	mockStorage := new(MockStorage)
 	s := New(mockRepo, mockStorage)
@@ -251,13 +243,6 @@ func TestLoginUser_Success(t *testing.T) {
 }
 
 func TestLoginUser_InvalidPassword(t *testing.T) {
-	// Why this test exists:
-	// To test a critical failure path: the user exists, but the password is wrong. It verifies
-	// that the service correctly identifies the mismatch and returns a specific, user-friendly
-	// error (ErrInvalidCredentials) rather than a generic or database-level error.
-	// Principle: Confidence. This guarantees we don't leak information about whether a user
-	// exists when a bad password is provided and that we don't accidentally log in users with
-	// wrong passwords.
 	mockRepo := new(MockRepository)
 	mockStorage := new(MockStorage)
 	s := New(mockRepo, mockStorage)
@@ -276,11 +261,6 @@ func TestLoginUser_InvalidPassword(t *testing.T) {
 }
 
 func TestUpdateHabit_Success(t *testing.T) {
-	// Why this test exists:
-	// To verify the authorization logic within the service. It ensures that a user can only
-	// update a habit they own.
-	// Principle: Predictability. Confirms the service correctly enforces ownership rules before
-	// persisting changes.
 	mockRepo := new(MockRepository)
 	mockStorage := new(MockStorage)
 	s := New(mockRepo, mockStorage)
@@ -306,12 +286,6 @@ func TestUpdateHabit_Success(t *testing.T) {
 }
 
 func TestUpdateHabit_AccessDenied(t *testing.T) {
-	// Why this test exists:
-	// This is the negative case for the above test. It verifies that if a user tries to
-	// update a habit they *don't* own, the service returns ErrUserAccessDenied and, crucially,
-	// **does not** call the repository's UpdateHabit method.
-	// Principle: Confidence. Provides strong confidence in the application's security by
-	// preventing unauthorized modifications.
 	mockRepo := new(MockRepository)
 	mockStorage := new(MockStorage)
 	s := New(mockRepo, mockStorage)
@@ -330,17 +304,10 @@ func TestUpdateHabit_AccessDenied(t *testing.T) {
 	assert.Error(t, err)
 	assert.True(t, errors.Is(err, ErrUserAccessDenied))
 	mockRepo.AssertExpectations(t)
-	// We assert that UpdateHabit was *not* called, which is the key part of this test.
 	mockRepo.AssertNotCalled(t, "UpdateHabit", ctx, mock.Anything)
 }
 
 func TestGetProfileData_Visitor(t *testing.T) {
-	// Why this test exists:
-	// To verify the data aggregation for the profile page from a visitor's perspective. It
-	// confirms that all necessary data is fetched sequentially and that the boolean flags
-	// `IsOwner` and `IsFollowing` are set correctly, as they drive UI behavior.
-	// Principle: Confidence. This high-value test ensures a key feature works correctly
-	// by verifying the assembled business outcome.
 	mockRepo := new(MockRepository)
 	mockStorage := new(MockStorage)
 	s := New(mockRepo, mockStorage)
@@ -351,9 +318,7 @@ func TestGetProfileData_Visitor(t *testing.T) {
 	testUser := &domain.User{ID: profileUserID, Username: "testuser"}
 
 	mockRepo.On("GetUserByUsername", ctx, "testuser").Return(testUser, nil)
-	// Mocking GetAllHabitsWithLogs which is an internal composition in the service
 	mockRepo.On("GetHabitsByUserID", ctx, profileUserID).Return([]domain.Habit{}, nil)
-	mockRepo.On("GetLogsForHabits", ctx, mock.Anything).Return([]domain.HabitLog{}, nil)
 	mockRepo.On("GetFollowerCount", ctx, profileUserID).Return(10, nil)
 	mockRepo.On("GetFollowingCount", ctx, profileUserID).Return(5, nil)
 	mockRepo.On("IsFollowing", ctx, visitorID, profileUserID).Return(true, nil)
@@ -369,10 +334,6 @@ func TestGetProfileData_Visitor(t *testing.T) {
 }
 
 func TestFollowUserByUsername_Success(t *testing.T) {
-	// Why this test exists:
-	// To test the user-facing follow mechanism. It verifies the service correctly orchestrates
-	// the two-step process: looking up the target user by name, then creating the relationship.
-	// Principle: Predictability. Ensures the sequence of operations is correct.
 	mockRepo := new(MockRepository)
 	mockStorage := new(MockStorage)
 	s := New(mockRepo, mockStorage)
@@ -391,10 +352,6 @@ func TestFollowUserByUsername_Success(t *testing.T) {
 }
 
 func TestFollowUserByUsername_CannotFollowSelf(t *testing.T) {
-	// Why this test exists:
-	// To test a specific business rule: a user cannot follow themselves. It verifies the
-	// service checks this condition *before* hitting the database to create the relationship.
-	// Principle: Clarity. Enforces a clear business rule in the service layer where it belongs.
 	mockRepo := new(MockRepository)
 	mockStorage := new(MockStorage)
 	s := New(mockRepo, mockStorage)
@@ -414,14 +371,6 @@ func TestFollowUserByUsername_CannotFollowSelf(t *testing.T) {
 }
 
 func TestUpdateUserAvatar_Success_DeletesOld(t *testing.T) {
-	// Why this test exists:
-	// To test the full orchestration of an avatar update, including resource cleanup. It verifies:
-	// 1. Old avatar URL is fetched.
-	// 2. New file is saved via the storage service.
-	// 3. Database is updated with the new URL.
-	// 4. Old file is deleted via the storage service.
-	// Principle: Confidence. Guarantees the service correctly manages its resources and
-	// cleans up after itself, preventing orphaned files.
 	mockRepo := new(MockRepository)
 	mockStorage := new(MockStorage)
 	s := New(mockRepo, mockStorage)
@@ -432,12 +381,14 @@ func TestUpdateUserAvatar_Success_DeletesOld(t *testing.T) {
 	newAvatarURL := "/uploads/avatars/new.png"
 	header := &multipart.FileHeader{Filename: "new.png", Size: 100}
 
+	mockFile := &mockMultipartFile{strings.NewReader("\x89PNG\r\n\x1a\n")}
+
 	mockRepo.On("GetUserAvatar", ctx, userID).Return(&oldAvatarURL, nil)
 	mockStorage.On("Save", ctx, mock.Anything, mock.AnythingOfType("string")).Return(newAvatarURL, nil)
 	mockRepo.On("UpdateUserAvatar", ctx, userID, &newAvatarURL).Return(nil)
 	mockStorage.On("Delete", ctx, oldAvatarURL).Return(nil)
 
-	url, err := s.UpdateUserAvatar(ctx, userID, nil, header) // file reader is nil as it's not used by the mock
+	url, err := s.UpdateUserAvatar(ctx, userID, mockFile, header)
 
 	assert.NoError(t, err)
 	assert.Equal(t, newAvatarURL, url)
@@ -446,11 +397,6 @@ func TestUpdateUserAvatar_Success_DeletesOld(t *testing.T) {
 }
 
 func TestUpdateUserAvatar_CleanupOnDBError(t *testing.T) {
-	// Why this test exists:
-	// To test a critical rollback scenario. If the new avatar is saved to storage but the
-	// database update fails, the service MUST clean up the newly created (but now orphaned) file.
-	// Principle: Confidence. Ensures the system remains in a consistent state even when
-	// things go wrong.
 	mockRepo := new(MockRepository)
 	mockStorage := new(MockStorage)
 	s := New(mockRepo, mockStorage)
@@ -461,13 +407,14 @@ func TestUpdateUserAvatar_CleanupOnDBError(t *testing.T) {
 	header := &multipart.FileHeader{Filename: "orphan.png", Size: 100}
 	dbError := errors.New("database is down")
 
+	mockFile := &mockMultipartFile{strings.NewReader("\x89PNG\r\n\x1a\n")}
+
 	mockRepo.On("GetUserAvatar", ctx, userID).Return(nil, nil)
 	mockStorage.On("Save", ctx, mock.Anything, mock.AnythingOfType("string")).Return(newAvatarURL, nil)
 	mockRepo.On("UpdateUserAvatar", ctx, userID, &newAvatarURL).Return(dbError)
-	// This is the crucial assertion: the service must attempt to delete the file it just saved.
 	mockStorage.On("Delete", ctx, newAvatarURL).Return(nil)
 
-	_, err := s.UpdateUserAvatar(ctx, userID, nil, header)
+	_, err := s.UpdateUserAvatar(ctx, userID, mockFile, header)
 
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), dbError.Error())
@@ -476,12 +423,6 @@ func TestUpdateUserAvatar_CleanupOnDBError(t *testing.T) {
 }
 
 func TestGetLeaderboard_Success(t *testing.T) {
-	// Why this test exists:
-	// After refactoring, the service's role is simply to delegate to the repository. This
-	// test verifies that delegation. It mocks the repository's `GetLeaderboard` method and
-	// ensures the service returns its result directly, without modification.
-	// Principle: Clarity. The simplicity of this test reflects the clarity of the refactored
-	// code. It confirms the service is not doing any complex data manipulation itself.
 	mockRepo := new(MockRepository)
 	mockStorage := new(MockStorage)
 	s := New(mockRepo, mockStorage)
