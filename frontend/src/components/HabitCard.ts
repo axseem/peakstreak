@@ -92,7 +92,10 @@ const generateOutline = (coords: { w: number; d: number }[]): Point[] => {
 };
 
 const createBlobPath = (polygon: Point[], options: { padding: number; radius: number, offsetX: number, offsetY: number }): string => {
-  const { padding, radius, offsetX, offsetY } = options; const path = []; const len = polygon.length; if (len < 3) return "";
+  const { padding, radius, offsetX, offsetY } = options;
+  const path = [];
+  const len = polygon.length;
+  if (len < 3) return "";
   const getPixelPos = (p: Point) => ({ x: p.x * STEP - CELL_GAP / 2 - offsetX, y: p.y * STEP - CELL_GAP / 2 - offsetY });
   const pathPoints: { p_before: Point; p_after: Point; sweepFlag: number; radius: number }[] = [];
   for (let i = 0; i < len; i++) {
@@ -402,7 +405,7 @@ export const HabitCard = ({ habit, isOwner, token, isEditing, activeHabitMenuId 
     ]),
 
     h<State>("div", { class: "relative" }, [
-      h<State>("div", { class: "flex flex-nowrap flex-row-reverse w-full overflow-x-scroll no-scrollbar items-end gap-4" },
+      h<State>("div", { class: "flex flex-nowrap flex-row-reverse w-full overflow-x-scroll overflow-y-hidden no-scrollbar items-end gap-4" },
         years.map(year =>
           h<State>("div", { key: String(year), class: "flex flex-col items-center gap-2 flex-shrink-0 px-8" }, [
             h<State>("div", { class: "font-bold", style: { color: HSLToString(color.text) } }, text(year)),
