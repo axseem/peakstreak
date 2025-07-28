@@ -105,6 +105,30 @@ func (s *Service) LoginUser(ctx context.Context, params LoginUserParams, jwtSecr
 	return user, token, nil
 }
 
+func (s *Service) DeleteUser(ctx context.Context, userID uuid.UUID) error {
+	// First, get the avatar URL so we can delete the file after the DB entry is gone.
+	avatarURL, err := s.repo.GetUserAvatar(ctx, userID)
+	if err != nil && !errors.Is(err, repository.ErrUserNotFound) {
+		slog.Warn("could not get user avatar before deletion", "userID", userID, "error", err)
+		// Continue with deletion even if we can't get the avatar URL.
+	}
+
+	// Now, delete the user from the database.
+	if err := s.repo.DeleteUser(ctx, userID); err != nil {
+		return err
+	}
+
+	// If user deletion was successful and an avatar existed, delete the file.
+	if avatarURL != nil && *avatarURL != "" {
+		if err := s.storage.Delete(ctx, *avatarURL); err != nil {
+			// Log a warning, but don't return an error since the user is already deleted.
+			slog.Warn("failed to delete user's avatar file after account deletion", "url", *avatarURL, "error", err)
+		}
+	}
+
+	return nil
+}
+
 func (s *Service) UpdateUserAvatar(ctx context.Context, userID uuid.UUID, file multipart.File, header *multipart.FileHeader) (string, error) {
 	if header.Size > MAX_AVATAR_SIZE {
 		return "", errors.New("file size exceeds the 2MB limit")

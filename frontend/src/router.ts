@@ -6,6 +6,7 @@ const staticRoutes: Record<string, State["view"]> = {
   "/signup": "signup",
   "/leaderboard": "leaderboard",
   "/explore": "explore",
+  "/settings": "settings",
   "/search": "search",
 };
 

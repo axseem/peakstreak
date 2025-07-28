@@ -86,7 +86,7 @@ export type ExploreState = {
 };
 
 export type State = {
-  view: "login" | "signup" | "profile" | "leaderboard" | "explore" | "not_found" | "home" | "search";
+  view: "login" | "signup" | "profile" | "leaderboard" | "explore" | "not_found" | "home" | "search" | "settings";
   user: User | null;
   token: string | null;
   profileData: ProfileData | null;

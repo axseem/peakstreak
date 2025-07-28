@@ -443,3 +443,24 @@ func (h *APIHandler) GetExplorePage(w http.ResponseWriter, r *http.Request) {
 
 	writeJSON(w, http.StatusOK, exploreData)
 }
+
+func (h *APIHandler) DeleteUser(w http.ResponseWriter, r *http.Request) {
+	userID, ok := getUserIDFromContext(r.Context())
+	if !ok {
+		errorResponse(w, http.StatusUnauthorized, "Authentication error")
+		return
+	}
+
+	if err := h.service.DeleteUser(r.Context(), userID); err != nil {
+		if errors.Is(err, repository.ErrUserNotFound) {
+			// This shouldn't happen if the token is valid, but handle it defensively.
+			errorResponse(w, http.StatusNotFound, "User not found")
+			return
+		}
+		slog.Error("failed to delete user", "userID", userID, "error", err)
+		errorResponse(w, http.StatusInternalServerError, "Failed to delete account")
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}

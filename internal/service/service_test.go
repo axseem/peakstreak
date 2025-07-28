@@ -55,11 +55,20 @@ func (m *MockRepository) GetUserAvatar(ctx context.Context, userID uuid.UUID) (*
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
-	return args.Get(0).(*string), args.Error(1)
+	// Handle the case where a nil pointer is returned intentionally
+	if val, ok := args.Get(0).(*string); ok {
+		return val, args.Error(1)
+	}
+	return nil, args.Error(1)
 }
 
 func (m *MockRepository) UpdateUserAvatar(ctx context.Context, userID uuid.UUID, avatarURL *string) error {
 	args := m.Called(ctx, userID, avatarURL)
+	return args.Error(0)
+}
+
+func (m *MockRepository) DeleteUser(ctx context.Context, userID uuid.UUID) error {
+	args := m.Called(ctx, userID)
 	return args.Error(0)
 }
 
@@ -617,4 +626,82 @@ func TestDeleteHabit_GenericDBError(t *testing.T) {
 	assert.Equal(t, dbError, err)
 	assert.False(t, errors.Is(err, ErrUserAccessDenied))
 	mockRepo.AssertExpectations(t)
+}
+
+func TestDeleteUser_Success_WithAvatar(t *testing.T) {
+	mockRepo := new(MockRepository)
+	mockStorage := new(MockStorage)
+	s := New(mockRepo, mockStorage)
+	ctx := context.Background()
+
+	userID := uuid.New()
+	avatarURL := "/uploads/avatars/user-avatar.png"
+
+	mockRepo.On("GetUserAvatar", ctx, userID).Return(&avatarURL, nil)
+	mockRepo.On("DeleteUser", ctx, userID).Return(nil)
+	mockStorage.On("Delete", ctx, avatarURL).Return(nil)
+
+	err := s.DeleteUser(ctx, userID)
+
+	assert.NoError(t, err)
+	mockRepo.AssertExpectations(t)
+	mockStorage.AssertExpectations(t)
+}
+
+func TestDeleteUser_Success_NoAvatar(t *testing.T) {
+	mockRepo := new(MockRepository)
+	mockStorage := new(MockStorage)
+	s := New(mockRepo, mockStorage)
+	ctx := context.Background()
+
+	userID := uuid.New()
+
+	mockRepo.On("GetUserAvatar", ctx, userID).Return(nil, nil)
+	mockRepo.On("DeleteUser", ctx, userID).Return(nil)
+
+	err := s.DeleteUser(ctx, userID)
+
+	assert.NoError(t, err)
+	mockRepo.AssertExpectations(t)
+	mockStorage.AssertNotCalled(t, "Delete", ctx, mock.Anything)
+}
+
+func TestDeleteUser_RepoError(t *testing.T) {
+	mockRepo := new(MockRepository)
+	mockStorage := new(MockStorage)
+	s := New(mockRepo, mockStorage)
+	ctx := context.Background()
+
+	userID := uuid.New()
+	dbError := errors.New("database is down")
+	avatarURL := "/uploads/avatars/user-avatar.png"
+
+	mockRepo.On("GetUserAvatar", ctx, userID).Return(&avatarURL, nil)
+	mockRepo.On("DeleteUser", ctx, userID).Return(dbError)
+
+	err := s.DeleteUser(ctx, userID)
+
+	assert.Error(t, err)
+	assert.Equal(t, dbError, err)
+	mockRepo.AssertExpectations(t)
+	mockStorage.AssertNotCalled(t, "Delete", ctx, mock.Anything)
+}
+
+func TestDeleteUser_UserNotFound(t *testing.T) {
+	mockRepo := new(MockRepository)
+	mockStorage := new(MockStorage)
+	s := New(mockRepo, mockStorage)
+	ctx := context.Background()
+
+	userID := uuid.New()
+
+	mockRepo.On("GetUserAvatar", ctx, userID).Return(nil, repository.ErrUserNotFound)
+	mockRepo.On("DeleteUser", ctx, userID).Return(repository.ErrUserNotFound)
+
+	err := s.DeleteUser(ctx, userID)
+
+	assert.Error(t, err)
+	assert.True(t, errors.Is(err, repository.ErrUserNotFound))
+	mockRepo.AssertExpectations(t)
+	mockStorage.AssertNotCalled(t, "Delete", ctx, mock.Anything)
 }

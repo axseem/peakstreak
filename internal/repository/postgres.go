@@ -83,6 +83,19 @@ func (r *PostgresRepository) GetUsers(ctx context.Context) ([]domain.User, error
 	return users, nil
 }
 
+func (r *PostgresRepository) DeleteUser(ctx context.Context, userID uuid.UUID) error {
+	// The ON DELETE CASCADE constraints in the schema should handle deleting related data.
+	query := `DELETE FROM users WHERE id = $1`
+	tag, err := r.db.Exec(ctx, query, userID)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrUserNotFound
+	}
+	return nil
+}
+
 func (r *PostgresRepository) SearchUsersByUsername(ctx context.Context, query string) ([]domain.PublicUser, error) {
 	sqlQuery := `
 		SELECT id, username, avatar_url

@@ -52,6 +52,7 @@ func NewRouter(handler *APIHandler) http.Handler {
 			r.Use(handler.authMiddleware)
 
 			r.Post("/user/avatar", handler.UploadAvatar)
+			r.Delete("/user", handler.DeleteUser)
 
 			r.Post("/habit", handler.CreateHabit)
 			r.Put("/habit/{habitId}", handler.UpdateHabit)

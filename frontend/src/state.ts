@@ -66,7 +66,7 @@ export const SetView = (state: State, { view, username }: { view: State["view"],
     return [baseState, [NavigateFx, { path: "/login", replace: true }]];
   }
 
-  const authRequiredViews: State["view"][] = [];
+  const authRequiredViews: State["view"][] = ["settings"];
   if (authRequiredViews.includes(view) && !state.token) {
     return [baseState, [NavigateFx, { path: "/login", replace: true }]];
   }
@@ -521,6 +521,14 @@ export const FetchExploreDataFx = (dispatch: any) => {
   api.get("/api/explore", null)
     .then(data => dispatch(SetExploreData, { entries: data }))
     .catch(err => dispatch(SetExploreError, err.message));
+};
+
+export const DeleteAccountFx = (dispatch: any, { token }: { token: string }) => {
+  api.delete("/api/user", token)
+    .then(() => {
+      dispatch(Logout);
+    })
+    .catch(err => dispatch(SetError, `Failed to delete account: ${err.message}`));
 };
 
 export const initFx = (dispatch: any, _state: State) => {
