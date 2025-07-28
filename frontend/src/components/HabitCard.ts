@@ -225,6 +225,16 @@ const CalendarGrid = ({ year, habit, logs, isEditing, token, color }: { year: nu
   const layout = generateCalendarLayout(year);
   if (layout.months.length === 0) return null;
 
+  const maxValuesPerMonth: number[] = Array(12).fill(0);
+  if (!habit.isBoolean) {
+    for (const log of logs) {
+      const monthIndex = new Date(log.date).getUTCMonth();
+      if (log.value > maxValuesPerMonth[monthIndex]) {
+        maxValuesPerMonth[monthIndex] = log.value;
+      }
+    }
+  }
+
   return h<State>("div", {
     class: "relative flex-shrink-0",
     style: { width: `${layout.totalWidth}px`, height: `${layout.totalHeight}px` }
@@ -241,12 +251,28 @@ const CalendarGrid = ({ year, habit, logs, isEditing, token, color }: { year: nu
       const isLogged = logValue > 0;
       const canToggle = isEditing && new Date(new Date().setUTCHours(0, 0, 0, 0)) >= date;
 
+      let backgroundColor = "transparent";
+      if (isLogged) {
+        if (habit.isBoolean) {
+          backgroundColor = HSLToString(color.cell);
+        } else {
+          const monthIndex = date.getUTCMonth();
+          const maxValue = maxValuesPerMonth[monthIndex];
+          // The raw opacity is the value's percentage of the max value for the month.
+          const rawOpacity = maxValue > 0 ? logValue / maxValue : 0;
+          // We set a minimum opacity of 10% for any logged day to ensure it's visible.
+          const opacity = Math.max(0.1, rawOpacity);
+          const { hue, saturation, lightness } = color.cell;
+          backgroundColor = `hsla(${hue}, ${saturation}%, ${lightness}%, ${opacity})`;
+        }
+      }
+
       return h("div", {
         key: dateStr, class: `absolute rounded-sm ${canToggle ? 'cursor-pointer hover:opacity-75' : ''}`,
         style: {
           left: `${w * STEP}px`, top: `${d * STEP + MONTH_LABEL_GUTTER}px`,
           width: `${CELL_SIZE}px`, height: `${CELL_SIZE}px`,
-          backgroundColor: isLogged ? HSLToString(color.cell) : "transparent",
+          backgroundColor: backgroundColor,
           border: isLogged ? "none" : `1px solid ${HSLToString(color.cellBorder)}`,
         },
         title: habit.isBoolean
