@@ -1,11 +1,13 @@
 import { h, text, type VNode, type Dispatchable } from "hyperapp";
-import type { State, HabitWithLogs, HabitLog, Habit } from "../types";
+import type { State, HabitWithLogs, HabitLog, Habit, EditingHabitState } from "../types";
 import {
   UpdateHabitFx,
   UpsertHabitLogFx,
   ToggleHabitMenu,
   CloseHabitMenu,
-  SetEditingHabit,
+  StartEditingHabit,
+  CancelEditingHabit,
+  UpdateEditingHabitField,
   DeleteHabitFx,
 } from "../state";
 import { toYYYYMMDD, getDatesForYear, groupLogsByYear } from "../lib/date";
@@ -292,12 +294,12 @@ const HabitMenu = ({ habit, token }: { habit: HabitWithLogs, token: string | nul
 
   return h("div", { class: "p-1" }, [
     MenuItem({
-      onclick: (state: State) => SetEditingHabit(state, habit.id)
+      onclick: (state: State) => StartEditingHabit(state, habit)
     }, [
       h("svg", { class: "w-4 h-4", fill: "none", viewBox: "0 0 24 24", "stroke-width": "1.5", stroke: "currentColor" },
         h("path", { "stroke-linecap": "round", "stroke-linejoin": "round", d: "M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" })
       ),
-      text("Edit")
+      text("Edit"),
     ]),
     MenuItem({
       onclick: (state: State) => [CloseHabitMenu(state), [DeleteHabitFx, { habitId: habit.id, token }]],
@@ -318,10 +320,12 @@ type HabitCardProps = {
   token: string | null;
   isEditing: boolean;
   activeHabitMenuId: string | null;
+  editingHabit: EditingHabitState | null;
 };
 
-export const HabitCard = ({ habit, isOwner, token, isEditing, activeHabitMenuId }: HabitCardProps): VNode<State> => {
-  const color = getColor(habit.colorHue);
+export const HabitCard = ({ habit, isOwner, token, isEditing, activeHabitMenuId, editingHabit }: HabitCardProps): VNode<State> => {
+  const displayHue = isEditing && editingHabit ? editingHabit.colorHue : habit.colorHue;
+  const color = getColor(displayHue);
 
   const todayStr = toYYYYMMDD(new Date());
   const todayLog = habit.logs.find(log => toYYYYMMDD(new Date(log.date)) === todayStr);
@@ -338,30 +342,28 @@ export const HabitCard = ({ habit, isOwner, token, isEditing, activeHabitMenuId 
 
   const handleEditSubmit = (state: State, event: Event): Dispatchable<State, any> => {
     event.preventDefault();
-    const form = event.target as HTMLFormElement;
-    const nameInput = form.elements.namedItem("habit-name") as HTMLInputElement;
-    const colorInput = form.elements.namedItem("habit-color") as HTMLInputElement;
 
-    if (!nameInput || !colorInput) {
+    if (!state.editingHabit || !token) {
+      return CancelEditingHabit(state);
+    }
+
+    const newName = state.editingHabit.name.trim();
+    if (newName.length === 0) {
+      alert("Habit name cannot be empty.");
       return state;
     }
 
-    const newName = nameInput.value.trim();
-    const newColorHue = parseInt(colorInput.value, 10);
+    const nameChanged = newName !== habit.name;
+    const colorChanged = state.editingHabit.colorHue !== habit.colorHue;
 
-    const isNewNameValid = newName.length > 0;
-    const isNewColorHueValid = !isNaN(newColorHue) && newColorHue >= 0 && newColorHue <= 360;
-
-    const nameChanged = isNewNameValid && newName !== habit.name;
-    const colorChanged = isNewColorHueValid && newColorHue !== habit.colorHue;
-
-    if ((nameChanged || colorChanged) && token) {
-      const finalName = nameChanged ? newName : habit.name;
-      const finalColor = colorChanged ? newColorHue : habit.colorHue;
-      return [state, [UpdateHabitFx, { habitId: habit.id, name: finalName, colorHue: finalColor, token }]];
+    if (nameChanged || colorChanged) {
+      return [
+        state,
+        [UpdateHabitFx, { habitId: habit.id, name: newName, colorHue: state.editingHabit.colorHue, token }]
+      ];
     }
 
-    return SetEditingHabit(state, null);
+    return CancelEditingHabit(state);
   };
 
   return h<State>("div", {
@@ -377,7 +379,7 @@ export const HabitCard = ({ habit, isOwner, token, isEditing, activeHabitMenuId 
           onkeydown: (state: State, event: KeyboardEvent) => {
             if (event.key === "Escape") {
               event.preventDefault();
-              return SetEditingHabit(state, null);
+              return CancelEditingHabit(state);
             }
             return state;
           },
@@ -386,8 +388,10 @@ export const HabitCard = ({ habit, isOwner, token, isEditing, activeHabitMenuId 
             name: "habit-name",
             class: "text-xl font-bold py-2 bg-transparent focus:outline-none w-full",
             style: { borderBottom: `1px solid ${HSLToString(color.cellBorder)}` },
-            value: habit.name,
+            value: editingHabit ? editingHabit.name : habit.name,
             autofocus: true,
+            oninput: (state: State, event: Event) =>
+              UpdateEditingHabitField(state, { field: 'name', value: (event.target as HTMLInputElement).value })
           }),
           h<State>("div", { class: "flex items-center justify-between" }, [
             h<State>("div", { class: "flex items-center gap-2" }, [
@@ -398,9 +402,17 @@ export const HabitCard = ({ habit, isOwner, token, isEditing, activeHabitMenuId 
                 type: "number",
                 min: "0",
                 max: "360",
-                value: habit.colorHue,
+                value: editingHabit ? editingHabit.colorHue : habit.colorHue,
                 class: "bg-transparent w-20 text-center py-2 focus:outline-none",
                 style: { borderBottom: `1px solid ${HSLToString(color.cellBorder)}` },
+                oninput: (state: State, event: Event) => {
+                  const rawValue = (event.target as HTMLInputElement).value;
+                  const value = parseInt(rawValue, 10);
+                  if (!isNaN(value) && value >= 0 && value <= 360) {
+                    return UpdateEditingHabitField(state, { field: 'colorHue', value });
+                  }
+                  return state;
+                }
               }),
             ]),
             Button({ type: "submit", class: "py-1 px-3 text-sm" }, text("Save")),

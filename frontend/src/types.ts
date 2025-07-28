@@ -31,6 +31,12 @@ export type HabitWithLogs = Habit & {
   logs: HabitLog[];
 };
 
+export type EditingHabitState = {
+  id: string;
+  name: string;
+  colorHue: number;
+};
+
 export type ProfileData = {
   user: User;
   habits: HabitWithLogs[];
@@ -91,7 +97,7 @@ export type State = {
   newHabitIsBoolean: boolean;
   isAddingHabit: boolean;
   isProfileMenuOpen: boolean;
-  editingHabitId: string | null;
+  editingHabit: EditingHabitState | null;
   activeHabitMenuId: string | null;
   followerList: FollowerListState;
   search: SearchState;

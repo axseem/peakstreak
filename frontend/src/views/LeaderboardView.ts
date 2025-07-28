@@ -29,7 +29,7 @@ const LeaderboardUserCard = ({ entry, rank }: { entry: LeaderboardEntry, rank: n
       ]),
     ]),
     entry.habits.length > 0 && h("div", { class: "flex flex-col gap-8 pt-4 mt-4 border-t border-neutral-800/50" },
-      entry.habits.map(habit => HabitCard({ habit, isOwner: false, token: null, isEditing: false, activeHabitMenuId: null }))
+      entry.habits.map(habit => HabitCard({ habit, isOwner: false, token: null, isEditing: false, activeHabitMenuId: null, editingHabit: null }))
     )
   ]);
 };

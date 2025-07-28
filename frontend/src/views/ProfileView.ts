@@ -180,11 +180,12 @@ export const ProfileView = (state: State): VNode<State> => {
           habit,
           isOwner,
           token: state.token,
-          isEditing: state.editingHabitId === habit.id,
-          activeHabitMenuId: state.activeHabitMenuId
+          isEditing: state.editingHabit?.id === habit.id,
+          activeHabitMenuId: state.activeHabitMenuId,
+          editingHabit: state.editingHabit
         })),
 
-        isOwner && !state.editingHabitId ? AddHabitCard(state) : null,
+        isOwner && !state.editingHabit ? AddHabitCard(state) : null,
 
         habits.length === 0 && !isOwner
           ? h("p", { class: "text-neutral-400" }, text("This user hasn't added any habits yet."))

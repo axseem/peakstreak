@@ -22,7 +22,7 @@ const ExploreUserCard = (entry: ExploreEntry): VNode<State> => {
       ]),
     ]),
     h("div", { class: "pt-4 mt-4 border-t border-neutral-800/50" },
-      HabitCard({ habit: entry.habit, isOwner: false, token: null, isEditing: false, activeHabitMenuId: null })
+      HabitCard({ habit: entry.habit, isOwner: false, token: null, isEditing: false, activeHabitMenuId: null, editingHabit: null })
     )
   ]);
 };

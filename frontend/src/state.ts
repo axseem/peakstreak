@@ -1,5 +1,5 @@
 import { api } from "./api";
-import type { State, User, HabitWithLogs, HabitLog, ProfileData, PublicUser, SearchState, LeaderboardEntry, ExploreEntry } from "./types";
+import type { State, User, Habit, HabitWithLogs, HabitLog, ProfileData, PublicUser, SearchState, LeaderboardEntry, ExploreEntry } from "./types";
 import { path_to_view, NavigateFx } from "./router";
 import { toYYYYMMDD } from "./lib/date";
 
@@ -20,7 +20,7 @@ export const initialState: State = {
   newHabitIsBoolean: true,
   isAddingHabit: false,
   isProfileMenuOpen: false,
-  editingHabitId: null,
+  editingHabit: null,
   activeHabitMenuId: null,
   followerList: {
     isOpen: false,
@@ -55,7 +55,7 @@ export const SetView = (state: State, { view, username }: { view: State["view"],
     ...state,
     view,
     error: null,
-    editingHabitId: null,
+    editingHabit: null,
     activeHabitMenuId: null
   };
 
@@ -202,7 +202,7 @@ export const UpdateHabit = (state: State, { habitId, name, colorHue }: { habitId
   return {
     ...state,
     isLoading: false,
-    editingHabitId: null,
+    editingHabit: null,
     profileData: {
       ...state.profileData,
       habits: state.profileData.habits.map(h =>
@@ -265,11 +265,28 @@ export const CloseHabitMenu = (state: State): State => ({
   activeHabitMenuId: null,
 });
 
-export const SetEditingHabit = (state: State, habitId: string | null): State => ({
+export const StartEditingHabit = (state: State, habit: Habit): State => ({
   ...state,
-  editingHabitId: habitId,
-  activeHabitMenuId: null, // Close menu when starting to edit
+  editingHabit: {
+    id: habit.id,
+    name: habit.name,
+    colorHue: habit.colorHue,
+  },
+  activeHabitMenuId: null,
 });
+
+export const CancelEditingHabit = (state: State): State => ({
+  ...state,
+  editingHabit: null,
+});
+
+export const UpdateEditingHabitField = (state: State, { field, value }: { field: 'name' | 'colorHue', value: string | number }): State => {
+  if (!state.editingHabit) return state;
+  return {
+    ...state,
+    editingHabit: { ...state.editingHabit, [field]: value }
+  };
+};
 
 export const SetFollowingStatus = (state: State, { isFollowing }: { isFollowing: boolean }): State => {
   if (!state.profileData) return state;
