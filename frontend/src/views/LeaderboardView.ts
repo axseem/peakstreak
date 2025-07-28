@@ -4,7 +4,7 @@ import { HabitCard } from "../components/HabitCard";
 import { Avatar } from "../components/Avatar";
 import { NavigateFx } from "../router";
 
-const LeaderboardUserCard = ({ entry, rank, state }: { entry: LeaderboardEntry, rank: number, state: State }): VNode<State> => {
+const LeaderboardUserCard = ({ entry, rank }: { entry: LeaderboardEntry, rank: number }): VNode<State> => {
   return h("div", {
     class: "flex flex-col gap-4 p-6 rounded-2xl bg-neutral-900/50 border border-neutral-800/50"
   }, [
@@ -50,7 +50,7 @@ export const LeaderboardView = (state: State): VNode<State> => {
     users.length === 0
       ? h("p", { class: "text-neutral-500" }, text("The leaderboard is empty. Start tracking habits!"))
       : h("div", { class: "flex flex-col gap-6" },
-        users.map((entry, index) => LeaderboardUserCard({ entry, rank: index + 1, state }))
+        users.map((entry, index) => LeaderboardUserCard({ entry, rank: index + 1 }))
       ),
   ]);
 };

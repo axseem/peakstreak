@@ -1,4 +1,4 @@
-import { h, text, type VNode, type Action } from "hyperapp";
+import { h, text, type VNode, type Dispatchable } from "hyperapp";
 import type { State, HabitWithLogs, HabitLog, Habit } from "../types";
 import {
   UpdateHabitFx,
@@ -11,6 +11,7 @@ import {
 import { toYYYYMMDD, getDatesForYear, groupLogsByYear } from "../lib/date";
 import { Popup } from "./Popup";
 import { twMerge } from "tailwind-merge";
+import { Button } from "./Button";
 
 type HSL = { hue: number; saturation: number; lightness: number };
 type Color = { background: HSL; monthBackground: HSL; cellBorder: HSL; cell: HSL; text: HSL };
@@ -335,24 +336,32 @@ export const HabitCard = ({ habit, isOwner, token, isEditing, activeHabitMenuId 
     logsByYear[currentYear] = [];
   }
 
-  const onNameChange: Action<State, Event> = (state, event) => {
-    const target = event.target as HTMLInputElement;
-    const newName = target.value.trim();
-    if (newName && newName !== habit.name && token) {
-      return [state, [UpdateHabitFx, { habitId: habit.id, name: newName, colorHue: habit.colorHue, token }]];
-    }
-    target.value = habit.name;
-    return state;
-  };
+  const handleEditSubmit = (state: State, event: Event): Dispatchable<State, any> => {
+    event.preventDefault();
+    const form = event.target as HTMLFormElement;
+    const nameInput = form.elements.namedItem("habit-name") as HTMLInputElement;
+    const colorInput = form.elements.namedItem("habit-color") as HTMLInputElement;
 
-  const onColorHueChange: Action<State, Event> = (state, event) => {
-    const target = event.target as HTMLInputElement;
-    const newColorHue = parseInt(target.value, 10);
-    if (!isNaN(newColorHue) && newColorHue >= 0 && newColorHue <= 360 && newColorHue !== habit.colorHue && token) {
-      return [state, [UpdateHabitFx, { habitId: habit.id, name: habit.name, colorHue: newColorHue, token }]];
+    if (!nameInput || !colorInput) {
+      return state;
     }
-    target.value = String(habit.colorHue);
-    return state;
+
+    const newName = nameInput.value.trim();
+    const newColorHue = parseInt(colorInput.value, 10);
+
+    const isNewNameValid = newName.length > 0;
+    const isNewColorHueValid = !isNaN(newColorHue) && newColorHue >= 0 && newColorHue <= 360;
+
+    const nameChanged = isNewNameValid && newName !== habit.name;
+    const colorChanged = isNewColorHueValid && newColorHue !== habit.colorHue;
+
+    if ((nameChanged || colorChanged) && token) {
+      const finalName = nameChanged ? newName : habit.name;
+      const finalColor = colorChanged ? newColorHue : habit.colorHue;
+      return [state, [UpdateHabitFx, { habitId: habit.id, name: finalName, colorHue: finalColor, token }]];
+    }
+
+    return SetEditingHabit(state, null);
   };
 
   return h<State>("div", {
@@ -362,29 +371,39 @@ export const HabitCard = ({ habit, isOwner, token, isEditing, activeHabitMenuId 
   }, [
     h<State>("div", { class: "flex justify-between items-center px-8" }, [
       isEditing && isOwner
-        ? h<State>("div", { class: "flex flex-col gap-2 w-full" }, [
+        ? h<State>("form", {
+          class: "flex flex-col gap-4 w-full",
+          onsubmit: handleEditSubmit,
+          onkeydown: (state: State, event: KeyboardEvent) => {
+            if (event.key === "Escape") {
+              event.preventDefault();
+              return SetEditingHabit(state, null);
+            }
+            return state;
+          },
+        }, [
           h("input", {
+            name: "habit-name",
             class: "text-xl font-bold py-2 bg-transparent focus:outline-none w-full",
             style: { borderBottom: `1px solid ${HSLToString(color.cellBorder)}` },
             value: habit.name,
-            onblur: onNameChange,
-            onkeydown: (state: State, event: KeyboardEvent) => {
-              if (event.key === "Enter") (event.target as HTMLInputElement).blur();
-              return state;
-            },
+            autofocus: true,
           }),
-          h<State>("div", { class: "flex items-center gap-2" }, [
-            h<State>("label", { for: `color-hue-${habit.id}`, class: "text-sm", style: { color: HSLToString(color.text) } }, text("Hue (0-360):")),
-            h("input", {
-              id: `color-hue-${habit.id}`, type: "number", min: "0", max: "360", value: habit.colorHue,
-              class: "bg-transparent w-20 text-center py-2 focus:outline-none",
-              style: { borderBottom: `1px solid ${HSLToString(color.cellBorder)}` },
-              onblur: onColorHueChange,
-              onkeydown: (state: State, event: KeyboardEvent) => {
-                if (event.key === "Enter") (event.target as HTMLInputElement).blur();
-                return state;
-              },
-            }),
+          h<State>("div", { class: "flex items-center justify-between" }, [
+            h<State>("div", { class: "flex items-center gap-2" }, [
+              h<State>("label", { for: `color-hue-${habit.id}`, class: "text-sm", style: { color: HSLToString(color.text) } }, text("Hue (0-360):")),
+              h("input", {
+                name: "habit-color",
+                id: `color-hue-${habit.id}`,
+                type: "number",
+                min: "0",
+                max: "360",
+                value: habit.colorHue,
+                class: "bg-transparent w-20 text-center py-2 focus:outline-none",
+                style: { borderBottom: `1px solid ${HSLToString(color.cellBorder)}` },
+              }),
+            ]),
+            Button({ type: "submit", class: "py-1 px-3 text-sm" }, text("Save")),
           ])
         ])
         : h<State>("h3", { class: "text-xl font-bold" }, text(habit.name)),

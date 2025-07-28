@@ -4,7 +4,7 @@ import { HabitCard } from "../components/HabitCard";
 import { Avatar } from "../components/Avatar";
 import { NavigateFx } from "../router";
 
-const ExploreUserCard = ({ entry, state }: { entry: ExploreEntry, state: State }): VNode<State> => {
+const ExploreUserCard = (entry: ExploreEntry): VNode<State> => {
   return h("div", {
     class: "flex flex-col gap-4 p-6 rounded-2xl bg-neutral-900/50 border border-neutral-800/50"
   }, [
@@ -43,7 +43,7 @@ export const ExploreView = (state: State): VNode<State> => {
     entries.length === 0
       ? h("p", { class: "text-neutral-500" }, text("Nothing to see here yet. Start logging habits!"))
       : h("div", { class: "flex flex-col gap-6" },
-        entries.map((entry) => ExploreUserCard({ entry, state }))
+        entries.map((entry) => ExploreUserCard(entry))
       ),
   ]);
 };
