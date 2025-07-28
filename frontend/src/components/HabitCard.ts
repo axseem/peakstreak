@@ -330,6 +330,7 @@ export const HabitCard = ({ habit, isOwner, token, isEditing, activeHabitMenuId,
   const todayStr = toYYYYMMDD(new Date());
   const todayLog = habit.logs.find(log => toYYYYMMDD(new Date(log.date)) === todayStr);
   const wasLoggedToday = !!todayLog && todayLog.value > 0;
+  const todayValue = todayLog?.value ?? 0;
 
   const logsByYear = groupLogsByYear(habit.logs);
   const years = Object.keys(logsByYear).map(Number).sort((a, b) => b - a);
@@ -421,19 +422,46 @@ export const HabitCard = ({ habit, isOwner, token, isEditing, activeHabitMenuId,
         : h<State>("h3", { class: "text-xl font-bold" }, text(habit.name)),
       isOwner && !isEditing && token
         ? h("div", { class: "flex items-center gap-2" }, [
-          habit.isBoolean && h("button", {
-            class: `p-2 rounded-full transition-colors ${wasLoggedToday
-              ? 'bg-white/20 text-white hover:bg-white/40 outline-2 outline-white/40 outline-offset-2'
-              : 'bg-white/10 hover:bg-white/30 text-white/30 hover:text-white'
-              }`,
-            onclick: (state: State) => [
-              state,
-              [UpsertHabitLogFx, { habitId: habit.id, date: todayStr, value: wasLoggedToday ? 0 : 1, token }]
-            ],
-            title: wasLoggedToday ? "Mark as not done for today" : "Mark as done for today"
-          }, h("svg", { class: "w-6 h-6", fill: "none", viewBox: "0 0 24 24", "stroke-width": "2", stroke: "currentColor" },
-            h("path", { "stroke-linecap": "round", "stroke-linejoin": "round", d: "M5 13l4 4L19 7" })
-          )),
+          habit.isBoolean
+            ? h("button", {
+              class: `p-2 rounded-full transition-colors ${wasLoggedToday
+                ? 'bg-white/20 text-white hover:bg-white/40 outline-2 outline-white/40 outline-offset-2'
+                : 'bg-white/10 hover:bg-white/30 text-white/30 hover:text-white'
+                }`,
+              onclick: (state: State) => [
+                state,
+                [UpsertHabitLogFx, { habitId: habit.id, date: todayStr, value: wasLoggedToday ? 0 : 1, token }]
+              ],
+              title: wasLoggedToday ? "Mark as not done for today" : "Mark as done for today"
+            }, h("svg", { class: "w-6 h-6", fill: "none", viewBox: "0 0 24 24", "stroke-width": "2", stroke: "currentColor" },
+              h("path", { "stroke-linecap": "round", "stroke-linejoin": "round", d: "M5 13l4 4L19 7" })
+            ))
+            : h("input", {
+              type: "number",
+              class: twMerge(
+                "w-12 p-2 rounded-lg text-center bg-transparent focus:outline-none focus:ring-0 border-0 transition-colors no-spinners",
+                wasLoggedToday
+                  ? 'bg-white/20 text-white hover:bg-white/40 outline-2 outline-white/40 outline-offset-2'
+                  : 'bg-white/10 hover:bg-white/30 text-white/30 hover:text-white'
+              ),
+              min: "0",
+              value: todayValue,
+              onchange: (state: State, event: Event) => {
+                const target = event.target as HTMLInputElement;
+                const rawValue = target.value;
+                const value = rawValue === "" ? 0 : parseInt(rawValue, 10);
+
+                if (!isNaN(value) && value >= 0) {
+                  if (value !== todayValue && token) {
+                    return [state, [UpsertHabitLogFx, { habitId: habit.id, date: todayStr, value, token }]];
+                  }
+                } else {
+                  target.value = String(todayValue);
+                }
+                return state;
+              },
+              title: "Log value for today"
+            }),
 
           h("div", { class: "relative" }, [
             h("button", {
