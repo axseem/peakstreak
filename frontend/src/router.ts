@@ -10,7 +10,9 @@ const staticRoutes: Record<string, State["view"]> = {
   "/search": "search",
 };
 
-export const path_to_view = (path: string): { view: State["view"], username?: string } => {
+export const path_to_view = (
+  path: string,
+): { view: State["view"]; username?: string } => {
   if (path === "/") {
     return { view: "home" };
   }
@@ -26,8 +28,11 @@ export const path_to_view = (path: string): { view: State["view"], username?: st
   return { view: "not_found" };
 };
 
-export const NavigateFx = (dispatch: any, { path, replace = false }: { path: string, replace?: boolean }) => {
-  const { view, username } = path_to_view(path.split('?')[0]); // Ignore query params for view resolution
+export const NavigateFx = (
+  dispatch: any,
+  { path, replace = false }: { path: string; replace?: boolean },
+) => {
+  const { view, username } = path_to_view(path.split("?")[0]);
   if (replace) {
     history.replaceState({ view, username }, "", path);
   } else {
@@ -38,7 +43,8 @@ export const NavigateFx = (dispatch: any, { path, replace = false }: { path: str
 
 const onPopState = (dispatch: any) => {
   const handler = (event: PopStateEvent) => {
-    const { view, username } = event.state || path_to_view(window.location.pathname);
+    const { view, username } =
+      event.state || path_to_view(window.location.pathname);
     dispatch(SetView, { view, username });
   };
   window.addEventListener("popstate", handler);

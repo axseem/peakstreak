@@ -3,7 +3,8 @@ import type { HabitLog } from "../types";
 /**
  * Formats a Date object into a YYYY-MM-DD string.
  */
-export const toYYYYMMDD = (date: Date): string => date.toISOString().split('T')[0];
+export const toYYYYMMDD = (date: Date): string =>
+  date.toISOString().split("T")[0];
 
 /**
  * Generates an array of Date objects for every day in a given year (UTC).
@@ -22,7 +23,9 @@ export const getDatesForYear = (year: number): Date[] => {
   }
 
   const isCurrentYear = year === currentYear;
-  const today = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+  const today = new Date(
+    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()),
+  );
 
   while (date.getUTCFullYear() === year) {
     if (isCurrentYear && date > today) {
@@ -37,13 +40,18 @@ export const getDatesForYear = (year: number): Date[] => {
 /**
  * Groups habit logs by their year.
  */
-export const groupLogsByYear = (logs: HabitLog[]): Record<number, HabitLog[]> => {
-  return logs.reduce((acc, log) => {
-    const year = new Date(log.date).getUTCFullYear();
-    if (!acc[year]) {
-      acc[year] = [];
-    }
-    acc[year].push(log);
-    return acc;
-  }, {} as Record<number, HabitLog[]>);
+export const groupLogsByYear = (
+  logs: HabitLog[],
+): Record<number, HabitLog[]> => {
+  return logs.reduce(
+    (acc, log) => {
+      const year = new Date(log.date).getUTCFullYear();
+      if (!acc[year]) {
+        acc[year] = [];
+      }
+      acc[year].push(log);
+      return acc;
+    },
+    {} as Record<number, HabitLog[]>,
+  );
 };

@@ -1,4 +1,3 @@
-// frontend/src/components/Sidebar.ts
 import { h, text, type VNode } from "hyperapp";
 import type { State } from "../types";
 import { NavigateFx } from "../router";
@@ -6,6 +5,7 @@ import { Logout, ToggleProfileMenu, CloseProfileMenu } from "../state";
 import { Popup } from "./Popup";
 import { Avatar } from "./Avatar";
 import { Menu, MenuItem } from "./Menu";
+import { twMerge } from "tailwind-merge";
 
 const NavLink = ({ path, label, active }: { path: string, label: string, active: boolean }): VNode<State> =>
   h("a",
@@ -23,9 +23,7 @@ const NavLink = ({ path, label, active }: { path: string, label: string, active:
 const SearchBar = (): VNode<State> =>
   h("div", { class: "relative" }, [
     h("span", { class: "absolute inset-y-0 left-0 flex items-center pl-4" },
-      h("svg", { class: "h-5 w-5 text-neutral-500", viewBox: "0 0 20 20", fill: "currentColor" },
-        h("path", { "fill-rule": "evenodd", d: "M9 3.5a5.5 5.5 0 100 11 5.5 5.5 0 000-11zM2 9a7 7 0 1112.452 4.391l3.328 3.329a.75.75 0 11-1.06 1.06l-3.329-3.328A7 7 0 012 9z", "clip-rule": "evenodd" })
-      )
+      h("iconify-icon", { icon: "material-symbols:search", class: "text-neutral-500", width: 20, height: 20 })
     ),
     h("input", {
       placeholder: "Search users...",
@@ -61,11 +59,9 @@ const ProfileMenu = (state: State): VNode<State> => {
         h("span", { class: "text-neutral-300 truncate" }, text("@" + state.user?.username || "Profile"))
       ]),
       h("button", {
-        class: "text-neutral-400 hover:text-white p-1 rounded-md flex-shrink-0",
+        class: "text-neutral-400 hover:text-white p-1 rounded-md flex-shrink-0 flex",
         onclick: ToggleProfileMenu,
-      }, h("svg", { class: "w-6 h-6", fill: "none", viewBox: "0 0 24 24", "stroke-width": "1.5", stroke: "currentColor" },
-        h("path", { "stroke-linecap": "round", "stroke-linejoin": "round", d: "M6.75 12a.75.75 0 11-1.5 0 .75.75 0 011.5 0zM13.5 12a.75.75 0 11-1.5 0 .75.75 0 011.5 0zM20.25 12a.75.75 0 11-1.5 0 .75.75 0 011.5 0z" })
-      ))
+      }, h("iconify-icon", { icon: "material-symbols:more-horiz", width: 24, height: 24 }))
     ]),
 
     Popup({
@@ -76,34 +72,74 @@ const ProfileMenu = (state: State): VNode<State> => {
       MenuItem({
         onclick: (s: State) => [CloseProfileMenu(s), [NavigateFx, { path: "/settings" }]],
       }, [
-        h("svg", { class: "w-4 h-4", xmlns: "http://www.w3.org/2000/svg", fill: "none", viewBox: "0 0 24 24", "stroke-width": "1.5", stroke: "currentColor" },
-          h("path", { "stroke-linecap": "round", "stroke-linejoin": "round", d: "M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065zM15 12a3 3 0 11-6 0 3 3 0 016 0z" })
-        ),
+        h("iconify-icon", { icon: "material-symbols:settings-outline", width: 16, height: 16 }),
         text("Settings")
       ]),
       MenuItem({
         class: "text-red-400 hover:bg-red-500/10 hover:text-red-300",
         onclick: Logout
       }, [
-        h("svg", { class: "w-4 h-4", xmlns: "http://www.w3.org/2000/svg", fill: "none", viewBox: "0 0 24 24", "stroke-width": "1.5", stroke: "currentColor" },
-          h("path", { "stroke-linecap": "round", "stroke-linejoin": "round", d: "M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M12 9l-3 3m0 0l3 3m-3-3h12.75" })
-        ),
+        h("iconify-icon", { icon: "material-symbols:logout", width: 16, height: 16 }),
         text("Logout")
       ])
     ]))
   ]);
 };
 
+// --- Mobile Nav ---
+const MobileNavItem = ({ path, label, icon, active }: { path: string, label: string, icon: VNode<State>, active: boolean }): VNode<State> =>
+  h("a", {
+    href: path,
+    class: twMerge("flex flex-col items-center justify-center gap-1 w-full pt-2 pb-1 transition-colors", active ? "text-white" : "text-neutral-400 hover:text-white"),
+    onclick: (state: State, event: Event) => {
+      event.preventDefault();
+      return [state, [NavigateFx, { path }]];
+    }
+  }, [
+    icon,
+    h("span", { class: "text-xs" }, text(label))
+  ]);
+
+const MobileNav = (state: State): VNode<State> | null => {
+  if (!state.user) return null;
+
+  return h("nav", {
+    class: "md:hidden fixed bottom-0 left-0 right-0 bg-black border-t border-neutral-900 z-30"
+  }, [
+    h("div", { class: "flex justify-around items-center h-16" }, [
+      MobileNavItem({
+        path: "/leaderboard", label: "Leaders", active: state.view === 'leaderboard',
+        icon: h("iconify-icon", { icon: "material-symbols:leaderboard-outline", width: 24, height: 24 })
+      }),
+      MobileNavItem({
+        path: "/explore", label: "Explore", active: state.view === 'explore',
+        icon: h("iconify-icon", { icon: "material-symbols:explore-outline", width: 24, height: 24 })
+      }),
+      MobileNavItem({
+        path: `/search`, label: "Search", active: state.view === 'search',
+        icon: h("iconify-icon", { icon: "material-symbols:search", width: 24, height: 24 })
+      }),
+      MobileNavItem({
+        path: `/@${state.user.username}`, label: "Profile", active: state.view === 'profile' && state.profileData?.isOwner === true,
+        icon: h("div", { width: 24, height: 24 }, Avatar({ src: state.user?.avatarUrl, username: state.user?.username, sizeClass: "w-6 h-6" }))
+      })
+    ])
+  ]);
+};
+
 export const Sidebar = (state: State): VNode<State> =>
-  h("aside", { class: "w-64 h-screen sticky top-0 bg-black flex-shrink-0 flex flex-col p-4 md:p-8 border-r border-neutral-900" }, [
-    h("div", { class: "flex flex-col gap-4 flex-grow" }, [
-      SearchBar(),
-      h("nav", { class: "flex flex-col gap-4 mt-4" }, [
-        NavLink({ path: "/leaderboard", label: "Leaderboard", active: state.view === 'leaderboard' }),
-        NavLink({ path: "/explore", label: "Explore", active: state.view === 'explore' }),
+  h("div", {}, [
+    h("aside", { class: "hidden md:flex w-64 h-screen sticky top-0 bg-black flex-shrink-0 flex-col p-8 border-r border-neutral-900" }, [
+      h("div", { class: "flex flex-col gap-4 flex-grow" }, [
+        SearchBar(),
+        h("nav", { class: "flex flex-col gap-4 mt-4" }, [
+          NavLink({ path: "/leaderboard", label: "Leaderboard", active: state.view === 'leaderboard' }),
+          NavLink({ path: "/explore", label: "Explore", active: state.view === 'explore' }),
+        ])
+      ]),
+      h("div", { class: "mt-auto" }, [
+        ProfileMenu(state),
       ])
     ]),
-    h("div", { class: "mt-auto" }, [
-      ProfileMenu(state),
-    ])
+    MobileNav(state)
   ]);

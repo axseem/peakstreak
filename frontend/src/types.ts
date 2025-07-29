@@ -48,7 +48,7 @@ export type ProfileData = {
 
 export type FollowerListState = {
   isOpen: boolean;
-  type: 'followers' | 'following' | null;
+  type: "followers" | "following" | null;
   users: PublicUser[];
   isLoading: boolean;
   error: string | null;
@@ -86,7 +86,16 @@ export type ExploreState = {
 };
 
 export type State = {
-  view: "login" | "signup" | "profile" | "leaderboard" | "explore" | "not_found" | "home" | "search" | "settings";
+  view:
+    | "login"
+    | "signup"
+    | "profile"
+    | "leaderboard"
+    | "explore"
+    | "not_found"
+    | "home"
+    | "search"
+    | "settings";
   user: User | null;
   token: string | null;
   profileData: ProfileData | null;

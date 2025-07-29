@@ -1,5 +1,16 @@
 import { api } from "./api";
-import type { State, User, Habit, HabitWithLogs, HabitLog, ProfileData, PublicUser, SearchState, LeaderboardEntry, ExploreEntry } from "./types";
+import type {
+  State,
+  User,
+  Habit,
+  HabitWithLogs,
+  HabitLog,
+  ProfileData,
+  PublicUser,
+  SearchState,
+  LeaderboardEntry,
+  ExploreEntry,
+} from "./types";
 import { path_to_view, NavigateFx } from "./router";
 import { toYYYYMMDD } from "./lib/date";
 
@@ -28,7 +39,7 @@ export const initialState: State = {
     users: [],
     isLoading: false,
     error: null,
-    title: ''
+    title: "",
   },
   search: {
     query: "",
@@ -50,18 +61,24 @@ export const initialState: State = {
 
 // --- Actions (Synchronous State Updaters) ---
 
-export const SetView = (state: State, { view, username }: { view: State["view"], username?: string }): [State, any] | State => {
+export const SetView = (
+  state: State,
+  { view, username }: { view: State["view"]; username?: string },
+): [State, any] | State => {
   const baseState = {
     ...state,
     view,
     error: null,
     editingHabit: null,
-    activeHabitMenuId: null
+    activeHabitMenuId: null,
   };
 
   if (view === "home") {
     if (state.token && state.user) {
-      return [baseState, [NavigateFx, { path: `/@${state.user.username}`, replace: true }]];
+      return [
+        baseState,
+        [NavigateFx, { path: `/@${state.user.username}`, replace: true }],
+      ];
     }
     return [baseState, [NavigateFx, { path: "/login", replace: true }]];
   }
@@ -72,19 +89,30 @@ export const SetView = (state: State, { view, username }: { view: State["view"],
   }
 
   if (view === "explore") {
-    const newState = { ...baseState, explore: { ...state.explore, isLoading: true, error: null } };
+    const newState = {
+      ...baseState,
+      explore: { ...state.explore, isLoading: true, error: null },
+    };
     return [newState, [FetchExploreDataFx, {}]];
   }
 
   if (view === "leaderboard") {
-    const newState = { ...baseState, leaderboard: { ...state.leaderboard, isLoading: true, error: null } };
+    const newState = {
+      ...baseState,
+      leaderboard: { ...state.leaderboard, isLoading: true, error: null },
+    };
     return [newState, [FetchLeaderboardFx, {}]];
   }
 
   if (view === "search") {
     const urlParams = new URLSearchParams(window.location.search);
-    const query = urlParams.get('q') || "";
-    const searchState: SearchState = { query, isLoading: true, error: null, results: [] };
+    const query = urlParams.get("q") || "";
+    const searchState: SearchState = {
+      query,
+      isLoading: true,
+      error: null,
+      results: [],
+    };
     const newState = { ...baseState, search: searchState };
 
     if (query.length >= 3) {
@@ -102,13 +130,21 @@ export const SetView = (state: State, { view, username }: { view: State["view"],
   return { ...newState, isLoading: false };
 };
 
-
 export const SetError = (state: State, error: string | null): State => {
   console.error("error: " + error);
-  return { ...state, isLoading: false, error, newHabitName: "", isAddingHabit: false };
+  return {
+    ...state,
+    isLoading: false,
+    error,
+    newHabitName: "",
+    isAddingHabit: false,
+  };
 };
 
-export const SetLoading = (state: State, isLoading: boolean): State => ({ ...state, isLoading });
+export const SetLoading = (state: State, isLoading: boolean): State => ({
+  ...state,
+  isLoading,
+});
 
 export const HandleFormInput = (state: State, event: Event): State => ({
   ...state,
@@ -125,26 +161,47 @@ export const HandleIsBooleanInput = (state: State, event: Event): State => ({
   newHabitIsBoolean: (event.target as HTMLInputElement).checked,
 });
 
-export const SetAuth = (state: State, { user, token }: { user: User, token: string }): [State, any] => {
+export const SetAuth = (
+  state: State,
+  { user, token }: { user: User; token: string },
+): [State, any] => {
   localStorage.setItem("peakstreak_user", JSON.stringify(user));
   localStorage.setItem("peakstreak_token", token);
   const newState = { ...state, user, token, isLoading: false, error: null };
-  return [newState, [NavigateFx, { path: `/@${user.username}`, replace: true }]];
+  return [
+    newState,
+    [NavigateFx, { path: `/@${user.username}`, replace: true }],
+  ];
 };
 
-export const SetProfileData = (state: State, profileData: ProfileData): State => {
+export const SetProfileData = (
+  state: State,
+  profileData: ProfileData,
+): State => {
   return { ...state, profileData, isLoading: false };
 };
 
-export const SetAvatarUrl = (state: State, { avatarUrl }: { avatarUrl: string }): State => {
+export const SetAvatarUrl = (
+  state: State,
+  { avatarUrl }: { avatarUrl: string },
+): State => {
   if (!state.user || !state.profileData) return state;
 
   const updatedUser = { ...state.user, avatarUrl };
-  const updatedProfileData = { ...state.profileData, user: { ...state.profileData.user, avatarUrl } };
+  const updatedProfileData = {
+    ...state.profileData,
+    user: { ...state.profileData.user, avatarUrl },
+  };
 
   localStorage.setItem("peakstreak_user", JSON.stringify(updatedUser));
 
-  return { ...state, user: updatedUser, profileData: updatedProfileData, isLoading: false, error: null };
+  return {
+    ...state,
+    user: updatedUser,
+    profileData: updatedProfileData,
+    isLoading: false,
+    error: null,
+  };
 };
 
 export const AddHabit = (state: State, newHabit: HabitWithLogs): State => {
@@ -158,12 +215,15 @@ export const AddHabit = (state: State, newHabit: HabitWithLogs): State => {
     isAddingHabit: false,
     profileData: {
       ...state.profileData,
-      habits: [...state.profileData.habits, newHabit]
-    }
+      habits: [...state.profileData.habits, newHabit],
+    },
   };
 };
 
-export const UpdateHabitLog = (state: State, { habitId, log }: { habitId: string, log: HabitLog }): State => {
+export const UpdateHabitLog = (
+  state: State,
+  { habitId, log }: { habitId: string; log: HabitLog },
+): State => {
   if (!state.profileData) return state;
 
   return {
@@ -171,11 +231,13 @@ export const UpdateHabitLog = (state: State, { habitId, log }: { habitId: string
     isLoading: false,
     profileData: {
       ...state.profileData,
-      habits: state.profileData.habits.map(h => {
+      habits: state.profileData.habits.map((h) => {
         if (h.id !== habitId) return h;
 
         const logDate = toYYYYMMDD(new Date(log.date));
-        const existingLogIndex = h.logs.findIndex(l => toYYYYMMDD(new Date(l.date)) === logDate);
+        const existingLogIndex = h.logs.findIndex(
+          (l) => toYYYYMMDD(new Date(l.date)) === logDate,
+        );
         let newLogs;
 
         if (existingLogIndex > -1) {
@@ -183,7 +245,9 @@ export const UpdateHabitLog = (state: State, { habitId, log }: { habitId: string
             newLogs = [...h.logs];
             newLogs[existingLogIndex] = log;
           } else {
-            newLogs = h.logs.filter(l => toYYYYMMDD(new Date(l.date)) !== logDate);
+            newLogs = h.logs.filter(
+              (l) => toYYYYMMDD(new Date(l.date)) !== logDate,
+            );
           }
         } else if (log.value > 0) {
           newLogs = [...h.logs, log];
@@ -191,13 +255,25 @@ export const UpdateHabitLog = (state: State, { habitId, log }: { habitId: string
           newLogs = h.logs;
         }
 
-        return { ...h, logs: newLogs.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()) };
-      })
-    }
+        return {
+          ...h,
+          logs: newLogs.sort(
+            (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime(),
+          ),
+        };
+      }),
+    },
   };
 };
 
-export const UpdateHabit = (state: State, { habitId, name, colorHue }: { habitId: string, name: string, colorHue: number }): State => {
+export const UpdateHabit = (
+  state: State,
+  {
+    habitId,
+    name,
+    colorHue,
+  }: { habitId: string; name: string; colorHue: number },
+): State => {
   if (!state.profileData) return state;
   return {
     ...state,
@@ -205,10 +281,10 @@ export const UpdateHabit = (state: State, { habitId, name, colorHue }: { habitId
     editingHabit: null,
     profileData: {
       ...state.profileData,
-      habits: state.profileData.habits.map(h =>
-        h.id === habitId ? { ...h, name, colorHue } : h
-      )
-    }
+      habits: state.profileData.habits.map((h) =>
+        h.id === habitId ? { ...h, name, colorHue } : h,
+      ),
+    },
   };
 };
 
@@ -219,16 +295,22 @@ export const HabitDeleted = (state: State, habitId: string): State => {
     isLoading: false,
     profileData: {
       ...state.profileData,
-      habits: state.profileData.habits.filter(h => h.id !== habitId)
-    }
+      habits: state.profileData.habits.filter((h) => h.id !== habitId),
+    },
   };
 };
-
 
 export const Logout = (_state: State): [State, any] => {
   localStorage.removeItem("peakstreak_user");
   localStorage.removeItem("peakstreak_token");
-  const newState: State = { ...initialState, view: "login", user: null, token: null, profileData: null, isProfileMenuOpen: false };
+  const newState: State = {
+    ...initialState,
+    view: "login",
+    user: null,
+    token: null,
+    profileData: null,
+    isProfileMenuOpen: false,
+  };
   return [newState, [NavigateFx, { path: "/login", replace: true }]];
 };
 
@@ -280,15 +362,21 @@ export const CancelEditingHabit = (state: State): State => ({
   editingHabit: null,
 });
 
-export const UpdateEditingHabitField = (state: State, { field, value }: { field: 'name' | 'colorHue', value: string | number }): State => {
+export const UpdateEditingHabitField = (
+  state: State,
+  { field, value }: { field: "name" | "colorHue"; value: string | number },
+): State => {
   if (!state.editingHabit) return state;
   return {
     ...state,
-    editingHabit: { ...state.editingHabit, [field]: value }
+    editingHabit: { ...state.editingHabit, [field]: value },
   };
 };
 
-export const SetFollowingStatus = (state: State, { isFollowing }: { isFollowing: boolean }): State => {
+export const SetFollowingStatus = (
+  state: State,
+  { isFollowing }: { isFollowing: boolean },
+): State => {
   if (!state.profileData) return state;
   const currentFollowers = state.profileData.followersCount;
   return {
@@ -298,13 +386,16 @@ export const SetFollowingStatus = (state: State, { isFollowing }: { isFollowing:
       ...state.profileData,
       isFollowing,
       followersCount: isFollowing ? currentFollowers + 1 : currentFollowers - 1,
-    }
+    },
   };
 };
 
-export const OpenFollowerList = (state: State, { type, username }: { type: 'followers' | 'following', username: string }): [State, any] => {
-  const title = type === 'followers' ? 'Followers' : 'Following';
-  const effect = type === 'followers' ? FetchFollowersFx : FetchFollowingFx;
+export const OpenFollowerList = (
+  state: State,
+  { type, username }: { type: "followers" | "following"; username: string },
+): [State, any] => {
+  const title = type === "followers" ? "Followers" : "Following";
+  const effect = type === "followers" ? FetchFollowersFx : FetchFollowingFx;
   const newState = {
     ...state,
     followerList: {
@@ -314,7 +405,7 @@ export const OpenFollowerList = (state: State, { type, username }: { type: 'foll
       isLoading: true,
       error: null,
       users: [],
-    }
+    },
   };
   return [newState, [effect, { username, token: state.token }]];
 };
@@ -324,17 +415,20 @@ export const CloseFollowerList = (state: State): State => ({
   followerList: {
     ...state.followerList,
     isOpen: false,
-  }
+  },
 });
 
-export const SetFollowerListData = (state: State, { users }: { users: PublicUser[] }): State => ({
+export const SetFollowerListData = (
+  state: State,
+  { users }: { users: PublicUser[] },
+): State => ({
   ...state,
   followerList: {
     ...state.followerList,
     users,
     isLoading: false,
     error: null,
-  }
+  },
 });
 
 export const SetFollowerListError = (state: State, error: string): State => ({
@@ -343,36 +437,45 @@ export const SetFollowerListError = (state: State, error: string): State => ({
     ...state.followerList,
     isLoading: false,
     error,
-  }
+  },
 });
 
-export const SetSearchResults = (state: State, { query, results }: { query: string, results: PublicUser[] }): State => ({
+export const SetSearchResults = (
+  state: State,
+  { query, results }: { query: string; results: PublicUser[] },
+): State => ({
   ...state,
   search: {
     query,
     results,
     isLoading: false,
     error: null,
-  }
+  },
 });
 
-export const SetSearchError = (state: State, { query, error }: { query: string, error: string }): State => ({
+export const SetSearchError = (
+  state: State,
+  { query, error }: { query: string; error: string },
+): State => ({
   ...state,
   search: {
     query,
     results: [],
     isLoading: false,
     error,
-  }
+  },
 });
 
-export const SetLeaderboardData = (state: State, { users }: { users: LeaderboardEntry[] }): State => ({
+export const SetLeaderboardData = (
+  state: State,
+  { users }: { users: LeaderboardEntry[] },
+): State => ({
   ...state,
   leaderboard: {
     users,
     isLoading: false,
     error: null,
-  }
+  },
 });
 
 export const SetLeaderboardError = (state: State, error: string): State => ({
@@ -382,16 +485,19 @@ export const SetLeaderboardError = (state: State, error: string): State => ({
     users: [],
     isLoading: false,
     error,
-  }
+  },
 });
 
-export const SetExploreData = (state: State, { entries }: { entries: ExploreEntry[] }): State => ({
+export const SetExploreData = (
+  state: State,
+  { entries }: { entries: ExploreEntry[] },
+): State => ({
   ...state,
   explore: {
     entries,
     isLoading: false,
     error: null,
-  }
+  },
 });
 
 export const SetExploreError = (state: State, error: string): State => ({
@@ -401,97 +507,155 @@ export const SetExploreError = (state: State, error: string): State => ({
     entries: [],
     isLoading: false,
     error,
-  }
+  },
 });
-
 
 // --- Effects (Asynchronous Side-Effects) ---
 
-export const FetchProfileFx = (dispatch: any, { username, token }: { username: string, token: string | null }) => {
+export const FetchProfileFx = (
+  dispatch: any,
+  { username, token }: { username: string; token: string | null },
+) => {
   dispatch(SetLoading, true);
-  api.get(`/api/profile/${username}`, token)
-    .then(data => dispatch(SetProfileData, data))
-    .catch(err => dispatch(SetError, err.message));
+  api
+    .get(`/api/profile/${username}`, token)
+    .then((data) => dispatch(SetProfileData, data))
+    .catch((err) => dispatch(SetError, err.message));
 };
 
 export const LoginFx = (dispatch: any, { identifier, password }: any) => {
   dispatch(SetLoading, true);
-  api.post("/api/auth/login", { identifier, password })
-    .then(data => dispatch(SetAuth, data))
-    .catch(err => dispatch(SetError, err.message));
+  api
+    .post("/api/auth/login", { identifier, password })
+    .then((data) => dispatch(SetAuth, data))
+    .catch((err) => dispatch(SetError, err.message));
 };
 
 export const SignUpFx = (dispatch: any, { username, email, password }: any) => {
   dispatch(SetLoading, true);
-  api.post("/api/auth/signup", { username, email, password })
+  api
+    .post("/api/auth/signup", { username, email, password })
     .then(() => {
-      const GoToLogin = (state: State): [State, any] => [state, [NavigateFx, { path: "/login" }]];
+      const GoToLogin = (state: State): [State, any] => [
+        state,
+        [NavigateFx, { path: "/login" }],
+      ];
       dispatch(GoToLogin);
     })
-    .catch(err => dispatch(SetError, err.message));
+    .catch((err) => dispatch(SetError, err.message));
 };
 
-export const CreateHabitFx = (dispatch: any, { name, colorHue, isBoolean, token }: { name: string, colorHue: number, isBoolean: boolean, token: string }) => {
+export const CreateHabitFx = (
+  dispatch: any,
+  {
+    name,
+    colorHue,
+    isBoolean,
+    token,
+  }: { name: string; colorHue: number; isBoolean: boolean; token: string },
+) => {
   dispatch(SetLoading, true);
-  api.post("/api/habit", { name, colorHue, isBoolean }, token)
+  api
+    .post("/api/habit", { name, colorHue, isBoolean }, token)
     .then((newHabit) => {
       const newHabitWithLogs: HabitWithLogs = { ...newHabit, logs: [] };
       dispatch(AddHabit, newHabitWithLogs);
     })
-    .catch(err => dispatch(SetError, err.message));
+    .catch((err) => dispatch(SetError, err.message));
 };
 
-export const UpsertHabitLogFx = (dispatch: any, { habitId, date, value, token }: { habitId: string, date: string, value: number, token: string }) => {
+export const UpsertHabitLogFx = (
+  dispatch: any,
+  {
+    habitId,
+    date,
+    value,
+    token,
+  }: { habitId: string; date: string; value: number; token: string },
+) => {
   dispatch(SetLoading, true);
-  api.post(`/api/habit/${habitId}/log`, { date, value }, token)
+  api
+    .post(`/api/habit/${habitId}/log`, { date, value }, token)
     .then((newLog) => dispatch(UpdateHabitLog, { habitId, log: newLog }))
-    .catch(err => dispatch(SetError, err.message));
+    .catch((err) => dispatch(SetError, err.message));
 };
 
-export const UpdateHabitFx = (dispatch: any, { habitId, name, colorHue, token }: { habitId: string, name: string, colorHue: number, token: string }) => {
+export const UpdateHabitFx = (
+  dispatch: any,
+  {
+    habitId,
+    name,
+    colorHue,
+    token,
+  }: { habitId: string; name: string; colorHue: number; token: string },
+) => {
   dispatch(SetLoading, true);
-  api.put(`/api/habit/${habitId}`, { name, colorHue }, token)
+  api
+    .put(`/api/habit/${habitId}`, { name, colorHue }, token)
     .then(() => dispatch(UpdateHabit, { habitId, name, colorHue }))
-    .catch(err => dispatch(SetError, err.message));
+    .catch((err) => dispatch(SetError, err.message));
 };
 
-export const DeleteHabitFx = (dispatch: any, { habitId, token }: { habitId: string, token: string }) => {
+export const DeleteHabitFx = (
+  dispatch: any,
+  { habitId, token }: { habitId: string; token: string },
+) => {
   dispatch(SetLoading, true);
-  api.delete(`/api/habit/${habitId}`, token)
+  api
+    .delete(`/api/habit/${habitId}`, token)
     .then(() => dispatch(HabitDeleted, habitId))
-    .catch(err => dispatch(SetError, err.message));
+    .catch((err) => dispatch(SetError, err.message));
 };
 
-export const FollowUserFx = (dispatch: any, { username, token }: { username: string, token: string }) => {
+export const FollowUserFx = (
+  dispatch: any,
+  { username, token }: { username: string; token: string },
+) => {
   dispatch(SetLoading, true);
-  api.post(`/api/profile/${username}/follow`, null, token)
+  api
+    .post(`/api/profile/${username}/follow`, null, token)
     .then(() => dispatch(SetFollowingStatus, { isFollowing: true }))
-    .catch(err => dispatch(SetError, err.message));
+    .catch((err) => dispatch(SetError, err.message));
 };
 
-export const UnfollowUserFx = (dispatch: any, { username, token }: { username: string, token: string }) => {
+export const UnfollowUserFx = (
+  dispatch: any,
+  { username, token }: { username: string; token: string },
+) => {
   dispatch(SetLoading, true);
-  api.delete(`/api/profile/${username}/follow`, token)
+  api
+    .delete(`/api/profile/${username}/follow`, token)
     .then(() => dispatch(SetFollowingStatus, { isFollowing: false }))
-    .catch(err => dispatch(SetError, err.message));
+    .catch((err) => dispatch(SetError, err.message));
 };
 
-export const FetchFollowersFx = (dispatch: any, { username, token }: { username: string, token: string | null }) => {
-  api.get(`/api/profile/${username}/followers`, token)
-    .then(users => dispatch(SetFollowerListData, { users }))
-    .catch(err => dispatch(SetFollowerListError, err.message));
+export const FetchFollowersFx = (
+  dispatch: any,
+  { username, token }: { username: string; token: string | null },
+) => {
+  api
+    .get(`/api/profile/${username}/followers`, token)
+    .then((users) => dispatch(SetFollowerListData, { users }))
+    .catch((err) => dispatch(SetFollowerListError, err.message));
 };
 
-export const FetchFollowingFx = (dispatch: any, { username, token }: { username: string, token: string | null }) => {
-  api.get(`/api/profile/${username}/following`, token)
-    .then(users => dispatch(SetFollowerListData, { users }))
-    .catch(err => dispatch(SetFollowerListError, err.message));
+export const FetchFollowingFx = (
+  dispatch: any,
+  { username, token }: { username: string; token: string | null },
+) => {
+  api
+    .get(`/api/profile/${username}/following`, token)
+    .then((users) => dispatch(SetFollowerListData, { users }))
+    .catch((err) => dispatch(SetFollowerListError, err.message));
 };
 
 const KB = 1024;
 const MB = 1024 * KB;
 
-export const UploadAvatarFx = (dispatch: any, { file, token }: { file: File, token: string }) => {
+export const UploadAvatarFx = (
+  dispatch: any,
+  { file, token }: { file: File; token: string },
+) => {
   if (file.size > 2 * MB) {
     dispatch(SetError, "File is too large. Max 2MB.");
     return;
@@ -500,35 +664,45 @@ export const UploadAvatarFx = (dispatch: any, { file, token }: { file: File, tok
   const formData = new FormData();
   formData.append("avatar", file);
 
-  api.upload("/api/user/avatar", formData, token)
-    .then(data => dispatch(SetAvatarUrl, { avatarUrl: data.avatarUrl }))
-    .catch(err => dispatch(SetError, err.message));
+  api
+    .upload("/api/user/avatar", formData, token)
+    .then((data) => dispatch(SetAvatarUrl, { avatarUrl: data.avatarUrl }))
+    .catch((err) => dispatch(SetError, err.message));
 };
 
 export const SearchUsersFx = (dispatch: any, { query }: { query: string }) => {
-  api.get(`/api/users/search?q=${encodeURIComponent(query)}`, null)
-    .then(results => dispatch(SetSearchResults, { query, results }))
-    .catch(err => dispatch(SetSearchError, { query, error: err.message }));
+  api
+    .get(`/api/users/search?q=${encodeURIComponent(query)}`, null)
+    .then((results) => dispatch(SetSearchResults, { query, results }))
+    .catch((err) => dispatch(SetSearchError, { query, error: err.message }));
 };
 
 export const FetchLeaderboardFx = (dispatch: any) => {
-  api.get("/api/leaderboard", null)
-    .then(data => dispatch(SetLeaderboardData, { users: data }))
-    .catch(err => dispatch(SetLeaderboardError, err.message));
+  api
+    .get("/api/leaderboard", null)
+    .then((data) => dispatch(SetLeaderboardData, { users: data }))
+    .catch((err) => dispatch(SetLeaderboardError, err.message));
 };
 
 export const FetchExploreDataFx = (dispatch: any) => {
-  api.get("/api/explore", null)
-    .then(data => dispatch(SetExploreData, { entries: data }))
-    .catch(err => dispatch(SetExploreError, err.message));
+  api
+    .get("/api/explore", null)
+    .then((data) => dispatch(SetExploreData, { entries: data }))
+    .catch((err) => dispatch(SetExploreError, err.message));
 };
 
-export const DeleteAccountFx = (dispatch: any, { token }: { token: string }) => {
-  api.delete("/api/user", token)
+export const DeleteAccountFx = (
+  dispatch: any,
+  { token }: { token: string },
+) => {
+  api
+    .delete("/api/user", token)
     .then(() => {
       dispatch(Logout);
     })
-    .catch(err => dispatch(SetError, `Failed to delete account: ${err.message}`));
+    .catch((err) =>
+      dispatch(SetError, `Failed to delete account: ${err.message}`),
+    );
 };
 
 export const initFx = (dispatch: any, _state: State) => {
