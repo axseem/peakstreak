@@ -324,7 +324,7 @@ WITH RankedUsers AS (
         u.id,
         u.username,
         u.avatar_url,
-        SUM(hl.value) as total_logged_days
+        COUNT(hl.id) as total_logged_days
     FROM
         users u
     JOIN
@@ -332,7 +332,7 @@ WITH RankedUsers AS (
     JOIN
         habit_logs hl ON h.id = hl.habit_id
     WHERE
-        hl.value > 0 AND h.is_boolean = TRUE
+        hl.value > 0
     GROUP BY
         u.id
     ORDER BY
